@@ -9,7 +9,7 @@ pin_data! {
     }
 }
 
-fn init_usize(val: InitMe<'_, usize>) -> InitProof<()> {
+fn init_usize<G>(val: InitMe<'_, usize, G>) -> InitProof<(), G> {
     val.write(5)
 }
 

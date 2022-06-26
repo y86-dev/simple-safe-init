@@ -16,7 +16,7 @@ pub struct Bar {
     my_addr: usize,
 }
 
-fn init_bar(bar: PinInitMe<'_, Bar>) -> InitProof<()> {
+fn init_bar<G>(bar: PinInitMe<'_, Bar, G>) -> InitProof<(), G> {
     init! { bar => Bar {
         .val = 42;
         .my_addr = 0;
