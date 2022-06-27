@@ -9,7 +9,11 @@ struct mutex {
 }
 
 // extern
-unsafe fn __init_mutex(_mutex: *mut mutex) {}
+unsafe fn __init_mutex(mutex: *mut mutex) {
+    for x in &mut (*mutex).data {
+        *x = 0;
+    }
+}
 
 fn init_raw_mutex<G>(mut mutex: PinInitMe<'_, mutex, G>) -> InitProof<(), G> {
     unsafe {
