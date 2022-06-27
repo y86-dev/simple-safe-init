@@ -3,17 +3,29 @@ use core::marker::PhantomData;
 
 /// A pointer to an Uninitialized `T` there is no pinning guarantee, so the data might be moved
 /// after initialization.
-pub struct InitMe<'a, T, G> {
+///
+/// *Implementation Detail:*
+///
+/// The second type parameter `G` is a guard type value. It is used to ensure that this object
+/// returns a unique `InitProof<(), G>` that cannot be used to vouche for any other initialization
+/// except this one.
+pub struct InitMe<'a, T: ?Sized, G> {
     ptr: *mut T,
     _phantom: PhantomData<(&'a mut T, fn(G) -> G)>,
 }
 
-impl<'a, T, G> InitMe<'a, T, G> {
-    /// Create a new PartialInit
+impl<'a, T: ?Sized, G> InitMe<'a, T, G> {
+    /// # ⛔⛔**WARNING: MACRO ONLY FUNCTION**⛔⛔
+    ///
+    /// This function is only designed to be used within the macros of this library.
+    /// Using it directly might run into **unexpected and undefined behavior!**
+    ///
+    /// I repeat: **DO NOT USE THIS FUNCTON!!**
     ///
     /// # Safety
     ///
-    /// The caller guarantees that this function is only called from the `init`/`pin_data` macros.
+    /// The caller guarantees that this function is only called from macros of this library.
+    #[doc(hidden)]
     pub unsafe fn ___new(ptr: *mut T, _guard: G) -> Self {
         Self {
             ptr,
@@ -21,11 +33,14 @@ impl<'a, T, G> InitMe<'a, T, G> {
         }
     }
 
-    /// Unsafely assume that the value is in reality initialized.
+    /// Unsafely assume that the value is initialized.
     ///
     /// # Safety
     ///
-    /// Only call this if you manually ensured the initialization.
+    /// The caller guarantees that the pointee has been fully initialized (e.g. via `as_mut_ptr`).
+    ///
+    /// *Warning:* This function circumvents the protection created by this library. Try to avoid
+    /// using this function.
     pub unsafe fn assume_init(self) -> InitProof<(), G> {
         InitProof {
             value: (),
@@ -33,8 +48,12 @@ impl<'a, T, G> InitMe<'a, T, G> {
         }
     }
 
-    /// Initialized the contents via a value.
-    pub fn write(self, val: T) -> InitProof<(), G> {
+    /// Initialized the contents via a value. This overwrites the memory pointed to without
+    /// dropping the old pointee.
+    pub fn write(self, val: T) -> InitProof<(), G>
+    where
+        T: Sized,
+    {
         unsafe {
             // SAFETY: We always create InitMe with a valid pointer
             self.ptr.write(val);
@@ -45,16 +64,40 @@ impl<'a, T, G> InitMe<'a, T, G> {
         }
     }
 
-    /// Gets a raw pointer from this function, the pointee will initially be uninitialized.
-    pub unsafe fn as_mut_ptr(&mut self) -> *mut T {
+    /// Gets a raw pointer to the pointee. Initially the memory will be uninitialized. If you
+    /// initialize parts of the pointee and then call `write`, then those will be overwritten.
+    pub fn as_mut_ptr(&mut self) -> *mut T {
         self.ptr
     }
 }
 
-unsafe impl<'a, T, G> ___PlaceInit for InitMe<'a, T, G> {
+#[doc(hidden)]
+unsafe impl<'a, T: ?Sized, G> ___PlaceInit for InitMe<'a, T, G> {
     type Init = InitProof<(), G>;
     type Raw = T;
+    type InitMe<'b, GG>
+    = InitMe<'b, T, G>
+    where
+        Self: 'b
+    ;
 
+    unsafe fn ___init_me<GG>(&mut self, _guard: GG) -> Self::InitMe<'_, G> {
+        InitMe {
+            ptr: self.ptr,
+            _phantom: PhantomData,
+        }
+    }
+
+    /// # ⛔⛔**WARNING: MACRO ONLY FUNCTION**⛔⛔
+    ///
+    /// This function is only designed to be used within the macros of this library.
+    /// Using it directly might run into **unexpected and undefined behavior!**
+    ///
+    /// I repeat: **DO NOT USE THIS FUNCTON!!**
+    ///
+    /// # Safety
+    ///
+    /// The caller guarantees that this function is only called from macros of this library.
     unsafe fn ___init(self) -> Self::Init {
         InitProof {
             value: (),
@@ -62,23 +105,46 @@ unsafe impl<'a, T, G> ___PlaceInit for InitMe<'a, T, G> {
         }
     }
 
-    unsafe fn ___as_mut_ptr(&mut self, _proof: impl FnOnce(Self::Raw)) -> *mut Self::Raw {
+    /// # ⛔⛔**WARNING: MACRO ONLY FUNCTION**⛔⛔
+    ///
+    /// This function is only designed to be used within the macros of this library.
+    /// Using it directly might run into **unexpected and undefined behavior!**
+    ///
+    /// I repeat: **DO NOT USE THIS FUNCTON!!**
+    ///
+    /// # Safety
+    ///
+    /// The caller guarantees that this function is only called from macros of this library.
+    unsafe fn ___as_mut_ptr(&mut self, _proof: &impl FnOnce(&Self::Raw)) -> *mut Self::Raw {
         self.ptr
     }
 }
 
 /// A pointer to an Uninitialized `T` with a pinning guarantee, so the data cannot be moved
 /// after initialization, if it is `!Unpin`.
-pub struct PinInitMe<'a, T, G> {
+///
+/// *Implementation Detail:*
+///
+/// The second type parameter `G` is a guard type value. It is used to ensure that this object
+/// returns a unique `InitProof<(), G>` that cannot be used to vouche for any other initialization
+/// except this one.
+pub struct PinInitMe<'a, T: ?Sized, G> {
     ptr: *mut T,
     _phantom: PhantomData<(&'a mut T, fn(G) -> G)>,
 }
 
-impl<'a, T, G> PinInitMe<'a, T, G> {
-    /// Create a new PinPartialInit
+impl<'a, T: ?Sized, G> PinInitMe<'a, T, G> {
+    /// # ⛔⛔**WARNING: MACRO ONLY FUNCTION**⛔⛔
+    ///
+    /// This function is only designed to be used within the macros of this library.
+    /// Using it directly might run into **unexpected and undefined behavior!**
+    ///
+    /// I repeat: **DO NOT USE THIS FUNCTON!!**
     ///
     /// # Safety
-    /// The caller guarantees that this function is only called by the `init` macro
+    ///
+    /// The caller guarantees that this function is only called from macros of this library.
+    #[doc(hidden)]
     pub unsafe fn ___new(ptr: *mut T, _guard: G) -> Self {
         Self {
             ptr,
@@ -86,11 +152,14 @@ impl<'a, T, G> PinInitMe<'a, T, G> {
         }
     }
 
-    /// Unsafely assume that the value is in reality initialized.
+    /// Unsafely assume that the value is initialized.
     ///
     /// # Safety
     ///
-    /// Only call this if you manually ensured the initialization.
+    /// The caller guarantees that the pointee has been fully initialized (e.g. via `as_mut_ptr`).
+    ///
+    /// *Warning:* This function circumvents the protection created by this library. Try to avoid
+    /// using this function.
     pub unsafe fn assume_init(self) -> InitProof<(), G> {
         InitProof {
             value: (),
@@ -98,8 +167,12 @@ impl<'a, T, G> PinInitMe<'a, T, G> {
         }
     }
 
-    /// Initialized the contents via a value.
-    pub fn write(self, val: T) -> InitProof<(), G> {
+    /// Initialized the contents via a value. This overwrites the memory pointed to without
+    /// dropping the old pointee.
+    pub fn write(self, val: T) -> InitProof<(), G>
+    where
+        T: Sized,
+    {
         unsafe {
             self.ptr.write(val);
         }
@@ -109,16 +182,42 @@ impl<'a, T, G> PinInitMe<'a, T, G> {
         }
     }
 
-    /// Gets a raw pointer from this function, the pointee will initially be uninitialized.
-    pub unsafe fn as_mut_ptr(&mut self) -> *mut T {
-        self.___as_mut_ptr(|_x| {})
+    /// Gets a raw pointer to the pointee. Initially the memory will be uninitialized. If you
+    /// initialize parts of the pointee and then call `write`, then those will be overwritten.
+    ///
+    /// The caller is not allowed to move out of the pointer, as it is pinned.
+    pub fn as_mut_ptr(&mut self) -> *mut T {
+        unsafe { self.___as_mut_ptr(&|_| {}) }
     }
 }
 
-unsafe impl<'a, T, G> ___PlaceInit for PinInitMe<'a, T, G> {
+#[doc(hidden)]
+unsafe impl<'a, T: ?Sized, G> ___PlaceInit for PinInitMe<'a, T, G> {
     type Init = InitProof<(), G>;
     type Raw = T;
+    type InitMe<'b, GG>
+    = PinInitMe<'b, T, G>
+    where
+        Self: 'b
+    ;
 
+    unsafe fn ___init_me<GG>(&mut self, _guard: GG) -> Self::InitMe<'_, G> {
+        PinInitMe {
+            ptr: self.ptr,
+            _phantom: PhantomData,
+        }
+    }
+
+    /// # ⛔⛔**WARNING: MACRO ONLY FUNCTION**⛔⛔
+    ///
+    /// This function is only designed to be used within the macros of this library.
+    /// Using it directly might run into **unexpected and undefined behavior!**
+    ///
+    /// I repeat: **DO NOT USE THIS FUNCTON!!**
+    ///
+    /// # Safety
+    ///
+    /// The caller guarantees that this function is only called from macros of this library.
     unsafe fn ___init(self) -> Self::Init {
         InitProof {
             value: (),
@@ -126,21 +225,37 @@ unsafe impl<'a, T, G> ___PlaceInit for PinInitMe<'a, T, G> {
         }
     }
 
-    unsafe fn ___as_mut_ptr(&mut self, _proof: impl FnOnce(Self::Raw)) -> *mut Self::Raw {
+    /// # ⛔⛔**WARNING: MACRO ONLY FUNCTION**⛔⛔
+    ///
+    /// This function is only designed to be used within the macros of this library.
+    /// Using it directly might run into **unexpected and undefined behavior!**
+    ///
+    /// I repeat: **DO NOT USE THIS FUNCTON!!**
+    ///
+    /// # Safety
+    ///
+    /// The caller guarantees that this function is only called from macros of this library.
+    unsafe fn ___as_mut_ptr(&mut self, _proof: &impl FnOnce(&Self::Raw)) -> *mut Self::Raw {
         self.ptr
     }
 }
 
 unsafe impl<'a, T, G> ___PinnedPlace for PinInitMe<'a, T, G> {}
 
-/// Proof to show to the `init!` macro, that a value was indeed initialized.
+/// Proof to show, that a value was indeed initialized.
+///
+/// The first parameter `T` is a wrapped value that was the normal return value of the function.
+///
+/// The second parameter `G` is a guard type value that is set up and used by the macros to ensure
+/// sound initialization.
 pub struct InitProof<T, G> {
     value: T,
     _phantom: PhantomData<fn(G) -> G>,
 }
 
 impl<T, G> InitProof<T, G> {
-    /// Unwrap the actual result contained within
+    /// Unwrap the actual result contained within and validate that the correct guard type was
+    /// used.
     pub fn unwrap(self, _guard: G) -> T {
         self.value
     }

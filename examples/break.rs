@@ -25,7 +25,7 @@ pin_data! {
     }
 }
 
-fn evil(foo: PinInitMe<'_, Foo, main::___LocalGuard>) -> InitProof<(), ___LocalGuard> {
+fn evil<G>(foo: PinInitMe<'_, Foo, G>) -> InitProof<(), G> {
     let baz = Box::pin(MaybeUninit::<Baz>::uninit());
     let baz = init! { baz => Baz {
         init_bar(.foo, foo);
