@@ -5,6 +5,61 @@ pub mod place;
 
 pub use init::*;
 
+/// # Overview
+/// This macro is the core of this library, there are several ways to initialize fields of structs.
+/// Here is an example:
+/// ```rust
+/// struct Foo<T> {
+///     msg: String,
+///     limit: usize,
+///     value: T,
+///     inner: InnerFoo,
+///     bar: isize,
+/// }
+///
+/// struct InnerFoo {
+///     x: u8,
+/// }
+///
+/// fn init_limit<G>(limit: InitMe<'_, usize, G>, limit_type: u8) -> InitProof<(), G> {
+///     extern fn __init_limit(ptr: *mut usize, typ: u8);
+///     unsafe {
+///         // SAFETY: `__init_limit` initializes the pointee
+///         __init_limit(limit.as_mut_ptr(), limit_type);
+///         limit.assume_init()
+///     }
+/// }
+///
+/// macro_rules! init_inner {
+///     ($inner:ident, $val:lit) => {
+///         // this macro needs to return an expression that returns an InitProof
+///         $inner.write($val)
+///     };
+/// }
+///
+/// fn init_bar<G>(bar: InitMe<'_, isize, G>) -> InitProof<isize, G> {
+///     bar.write(1).ret(1)
+/// }
+///
+/// let foo = Box::pin(MaybeUninit::<Foo>::uninit());
+/// // first specify the expression you wans to initialize, then specify the exact type with
+/// generics
+/// init! { foo => Foo<f64> {
+///     // just normally assign the variable
+///     .msg = "Hello World".to_owned();
+///     // use a delegation function
+///     init_limit(.limit, 0);
+///     // use a delagation macro
+///     init_inner!(.inner, 16);
+///     // you can use already initalized values
+///     .value = (*limit) as f64;
+///     // get the return value from an init function
+///     ~let val = init_bar(.bar);
+///     // you can use normal macros (as long as they do not start with `.` and then an ident):
+///     assert_eq!(val, 1);
+///     // you can use arbitrary rust statements ...
+/// }};
+/// ```
 #[macro_export]
 macro_rules! init {
     ($var:expr => $struct:ident $(<$($generic:ty),*>)? { $($tail:tt)* }) => {
@@ -14,6 +69,8 @@ macro_rules! init {
                 no_warn(&mut var);
                 $crate::init!(@inner(var _is_pinned () $struct $(<$($generic),*>)?) $($tail)*);
                 unsafe {
+                    // SAFETY: The pointee of `var` has been fully initialized, if this part is
+                    // reachable and no compile error exists.
                     $crate::place::___PlaceInit::___init(var)
                 }
             }
@@ -23,10 +80,13 @@ macro_rules! init {
         match $var {
             mut var => {
                 let () = $crate::init::InitProof::unwrap($func $(:: $(<$($args),*>::)? $path)* (unsafe {
-                    $crate::place::___PlaceInit::___init_me(&mut $var)
+                    // SAFETY: we own `var` and assume it is initialized below
+                    $crate::place::___PlaceInit::___init_me(&mut var)
                 } $($rest)*));
                 unsafe {
-                    $crate::place::___PlaceInit::___init($var)
+                    // SAFETY: The pointee was initialized by the function above and the InitProof
+                    // was valid.
+                    $crate::place::___PlaceInit::___init(var)
                 }
             }
         }
@@ -50,10 +110,8 @@ macro_rules! init {
     ) => {
         match $val {
             val => unsafe {
-                // SAFETY: we are
-                // - not inspecting the pointee (might be uninit)
-                // - not moving the value (might be pinned)
-                // - not expanding any uncontrollable macro input
+                // SAFETY: ___as_mut_ptr returns a valid pointer that points to possibly uninit
+                // memory. we only use ptr::write, which is allowed
                 ::core::ptr::write(
                     ::core::ptr::addr_of_mut!(
                         (*$crate::place::___PlaceInit::___as_mut_ptr(&mut $var, &|_: &$name $(<$($generic),*>)?|  {})).$field
@@ -64,6 +122,7 @@ macro_rules! init {
         }
         let $field = {
             unsafe {
+                // we initialized the memory above, so we can now create a reference
                 &mut *::core::ptr::addr_of_mut!((*$crate::place::___PlaceInit::___as_mut_ptr(&mut $var, &|_: &$name $(<$($generic),*>)?| {})).$field)
             }
         };
@@ -74,7 +133,7 @@ macro_rules! init {
     // a function call initializing a single field, we cannot use the `path` metavariable type,
     // because `(` is not allowed after that :(
     (@inner($var:ident $pin:ident ($($inner:tt)*) $name:ident $(<$($generic:ty),*>)?)
-        $(let $binding:pat = )?$func:ident $(:: $(<$($args:ty),*$(,)?>::)? $path:ident)*(.$field:ident $($rest:tt)*);
+        $(~let $binding:pat = )?$func:ident $(:: $(<$($args:ty),*$(,)?>::)? $path:ident)*(.$field:ident $($rest:tt)*);
         $($tail:tt)*
     ) => {
         $crate::init!(@init_call($var, $name $(<$($generic),*>)?, $field, field_place, ($func $(:: $(<$($args),*>::)? $path)*(field_place $($rest)*)), $($binding)?));
@@ -82,7 +141,7 @@ macro_rules! init {
     };
     // an unsafe function initializing a single field.
     (@inner($var:ident $pin:ident ($($inner:tt)*) $name:ident $(<$($generic:ty),*>)?)
-        $(let $binding:pat = )?unsafe { $func:ident $(:: $(<$($args:ty),*$(,)?>::)? $path:ident)*(.$field:ident $($rest:tt)*) };
+        $(~let $binding:pat = )?unsafe { $func:ident $(:: $(<$($args:ty),*$(,)?>::)? $path:ident)*(.$field:ident $($rest:tt)*) };
         $($tail:tt)*
     ) => {
         $crate::init!(@init_call($var, $name $(<$($generic),*>)?, $field, field_place, (unsafe { $func $(:: $(<$($args),*>::)? $path)*(field_place $($rest)*) }), $($binding)?));
@@ -90,7 +149,7 @@ macro_rules! init {
     };
     // a macro call initializing a single field
     (@inner($var:ident $pin:ident ($($inner:tt)*) $name:ident $(<$($generic:ty),*>)?)
-        $(let $binding:pat = )?$func:ident $(:: $(<$($args:ty),*$(,)?>::)? $path:ident)*!(.$field:ident $($rest:tt)*);
+        $(~let $binding:pat = )?$func:ident $(:: $(<$($args:ty),*$(,)?>::)? $path:ident)*!(.$field:ident $($rest:tt)*);
         $($tail:tt)*
     ) => {
         $crate::init!(@init_call($var, $name $(<$($generic),*>)?, $field, field_place, ($func $(:: $(<$($args),*>::)? $path)*!(field_place $($rest)*)), $($binding)?));
@@ -98,7 +157,7 @@ macro_rules! init {
     };
     // an async function call initializing a single field
     (@inner($var:ident $pin:ident ($($inner:tt)*) $name:ident $(<$($generic:ty),*>)?)
-        $(let $binding:pat = )?$func:ident $(:: $(<$($args:ty),*$(,)?>::)? $path:ident)*(.$field:ident $($rest:tt)*).await;
+        $(~let $binding:pat = )?$func:ident $(:: $(<$($args:ty),*$(,)?>::)? $path:ident)*(.$field:ident $($rest:tt)*).await;
         $($tail:tt)*
     ) => {
         $crate::init!(@init_call($var, $name $(<$($generic),*>)?, $field, field_place, ($func $(:: $(<$($args),*>::)? $path)*(field_place $($rest)*).await), $($binding)?));
