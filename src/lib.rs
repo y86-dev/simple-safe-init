@@ -12,7 +12,7 @@ macro_rules! init {
             mut var => {
                 fn no_warn<___T>(_: &mut ___T) {}
                 no_warn(&mut var);
-                init!(@inner(var _is_pinned () $struct $(<$($generic),*>)?) $($tail)*);
+                $crate::init!(@inner(var _is_pinned () $struct $(<$($generic),*>)?) $($tail)*);
                 unsafe {
                     $crate::place::___PlaceInit::___init(var)
                 }
@@ -31,6 +31,10 @@ macro_rules! init {
             }
         }
     };
+    // when there is no input left, construct a struct initializer with all of the fields
+    // mentioned. If one is missing or a duplicate, the compiler will complain.
+    // We do this inside of a closure, because we do not want to really create this struct. Also,
+    // the values of the fields are `todo!()` thus the allow unreachable.
     (@inner($var:ident $pin:ident ($($inner:tt)*) $name:ident $(<$($generic:ty),*>)?)) => {
         #[allow(unreachable_code)]
         let ____check_all_init = || {
@@ -39,7 +43,11 @@ macro_rules! init {
             };
         };
     };
-    (@inner($var:ident $pin:ident ($($inner:tt)*) $name:ident $(<$($generic:ty),*>)?) .$field:ident = $val:expr; $($tail:tt)*) => {
+    // a normal assignment, use raw pointers to set the value.
+    (@inner($var:ident $pin:ident ($($inner:tt)*) $name:ident $(<$($generic:ty),*>)?)
+        .$field:ident = $val:expr;
+        $($tail:tt)*
+    ) => {
         match $val {
             val => unsafe {
                 // SAFETY: we are
@@ -61,72 +69,89 @@ macro_rules! init {
         };
         #[allow(unused_variables)]
         let $field = $field;
-        init!(@inner($var $pin ($($inner)* $field: ::core::todo!(),) $name $(<$($generic),*>)?) $($tail)*);
+        $crate::init!(@inner($var $pin ($($inner)* $field: ::core::todo!(),) $name $(<$($generic),*>)?) $($tail)*);
     };
-    (@inner($var:ident $pin:ident ($($inner:tt)*) $name:ident $(<$($generic:ty),*>)?) $(.let $binding:pat = )?$func:ident $(:: $(<$($args:ty),*$(,)?>::)? $path:ident)*(.$field:ident $($rest:tt)*); $($tail:tt)*) => {
-        let result;
-        {
-            struct ___LocalGuard;
-            let value = unsafe {
-                // SAFETY: we are
-                // - not inspecting the pointee (might be uninit)
-                // - not moving the value (might be pinned)
-                // - not expanding any uncontrollable macro input
-                <$name $(<$($generic),*>)? as $crate::place::___PinData>::___PinData::$field(
-                    ::core::ptr::addr_of_mut!((*$crate::place::___PlaceInit::___as_mut_ptr(&mut $var, &|_: &$name $(<$($generic),*>)?| {})).$field),
-                    &$var,
-                    ___LocalGuard,
-                )
-            };
-            let guard = ___LocalGuard;
-            {
-                struct ___LocalGuard;
-                result = $crate::init::InitProof::unwrap($func $(:: $(<$($args),*>::)? $path)*(value $($rest)*), guard);
-            }
-        }
-        $(let $binding = result;)?
-        let $field = {
-            unsafe {
-                &mut *::core::ptr::addr_of_mut!((*$crate::place::___PlaceInit::___as_mut_ptr(&mut $var, &|_: &$name $(<$($generic),*>)?| {})).$field)
-            }
-        };
-        #[allow(unused_variables)]
-        let $field = $field;
-        init!(@inner($var $pin ($($inner)* $field: ::core::todo!(),) $name $(<$($generic),*>)?) $($tail)*);
+    // a function call initializing a single field, we cannot use the `path` metavariable type,
+    // because `(` is not allowed after that :(
+    (@inner($var:ident $pin:ident ($($inner:tt)*) $name:ident $(<$($generic:ty),*>)?)
+        $(let $binding:pat = )?$func:ident $(:: $(<$($args:ty),*$(,)?>::)? $path:ident)*(.$field:ident $($rest:tt)*);
+        $($tail:tt)*
+    ) => {
+        $crate::init!(@init_call($var, $name $(<$($generic),*>)?, $field, field_place, ($func $(:: $(<$($args),*>::)? $path)*(field_place $($rest)*)), $($binding)?));
+        $crate::init!(@inner($var $pin ($($inner)* $field: ::core::todo!(),) $name $(<$($generic),*>)?) $($tail)*);
     };
-    (@inner($var:ident $pin:ident ($($inner:tt)*) $name:ident $(<$($generic:ty),*>)?) $(.let $binding:pat = )?unsafe { $func:ident $(:: $(<$($args:ty),*$(,)?>::)? $path:ident)*(.$field:ident $($rest:tt)*) }; $($tail:tt)*) => {
-        let result;
-        {
-            struct ___LocalGuard;
-            let value = unsafe {
-                // SAFETY: we are
-                // - not inspecting the pointee (might be uninit)
-                // - not moving the value (might be pinned)
-                <$name $(<$($generic),*>)? as $crate::place::___PinData>::___PinData::$field(
-                    ::core::ptr::addr_of_mut!((*$crate::place::___PlaceInit::___as_mut_ptr(&mut $var, &|_: &$name $(<$($generic),*>)?| {})).$field),
-                    &$var,
-                    ___LocalGuard,
-                )
-            };
-            let guard = ___LocalGuard;
-            {
-                struct ___LocalGuard;
-                result = $crate::init::InitProof::unwrap(unsafe { $func $(:: $(<$($args),*>::)? $path)*(value $($rest)*) }, guard);
-            }
-        }
-        $(let $binding = result;)?
-        let $field = {
-            unsafe {
-                &mut *::core::ptr::addr_of_mut!((*$crate::place::___PlaceInit::___as_mut_ptr(&mut $var, &|_: &$name $(<$($generic),*>)?| {})).$field)
-            }
-        };
-        #[allow(unused_variables)]
-        let $field = $field;
-        init!(@inner($var $pin ($($inner)* $field: ::core::todo!(),) $name $(<$($generic),*>)?) $($tail)*);
+    // an unsafe function initializing a single field.
+    (@inner($var:ident $pin:ident ($($inner:tt)*) $name:ident $(<$($generic:ty),*>)?)
+        $(let $binding:pat = )?unsafe { $func:ident $(:: $(<$($args:ty),*$(,)?>::)? $path:ident)*(.$field:ident $($rest:tt)*) };
+        $($tail:tt)*
+    ) => {
+        $crate::init!(@init_call($var, $name $(<$($generic),*>)?, $field, field_place, (unsafe { $func $(:: $(<$($args),*>::)? $path)*(field_place $($rest)*) }), $($binding)?));
+        $crate::init!(@inner($var $pin ($($inner)* $field: ::core::todo!(),) $name $(<$($generic),*>)?) $($tail)*);
     };
-    (@inner($var:ident $pin:ident ($($inner:tt)*) $($name:tt)*) $st:stmt; $($tail:tt)*) => {
+    // a macro call initializing a single field
+    (@inner($var:ident $pin:ident ($($inner:tt)*) $name:ident $(<$($generic:ty),*>)?)
+        $(let $binding:pat = )?$func:ident $(:: $(<$($args:ty),*$(,)?>::)? $path:ident)*!(.$field:ident $($rest:tt)*);
+        $($tail:tt)*
+    ) => {
+        $crate::init!(@init_call($var, $name $(<$($generic),*>)?, $field, field_place, ($func $(:: $(<$($args),*>::)? $path)*!(field_place $($rest)*)), $($binding)?));
+        $crate::init!(@inner($var $pin ($($inner)* $field: ::core::todo!(),) $name $(<$($generic),*>)?) $($tail)*);
+    };
+    // an async function call initializing a single field
+    (@inner($var:ident $pin:ident ($($inner:tt)*) $name:ident $(<$($generic:ty),*>)?)
+        $(let $binding:pat = )?$func:ident $(:: $(<$($args:ty),*$(,)?>::)? $path:ident)*(.$field:ident $($rest:tt)*).await;
+        $($tail:tt)*
+    ) => {
+        $crate::init!(@init_call($var, $name $(<$($generic),*>)?, $field, field_place, ($func $(:: $(<$($args),*>::)? $path)*(field_place $($rest)*).await), $($binding)?));
+        $crate::init!(@inner($var $pin ($($inner)* $field: ::core::todo!(),) $name $(<$($generic),*>)?) $($tail)*);
+    };
+    // a normal statement that will be executed as-is.
+    (@inner($var:ident $pin:ident ($($inner:tt)*) $($name:tt)*)
+        $st:stmt;
+        $($tail:tt)*
+    ) => {
         $st
-        init!(@inner($var $pin ($($inner)*) $($name)*) $($tail)*);
+        $crate::init!(@inner($var $pin ($($inner)*) $($name)*) $($tail)*);
+    };
+    // generalized function/macro call helper
+    (@init_call($var:ident, $name:ident $(<$($generic:ty),*>)?, $field:ident, $field_place:ident, ($($call:tt)*), $($binding:pat)?)) => {
+        let result;
+        {
+            // this type is used as the guard parameter on `(Pin)InitMe` and ensures that we
+            // definetly initialize the specified field. we scope it here, to ensure no usage
+            // outside of this macro.
+            #[doc(hidden)]
+            struct ___LocalGuard;
+            // get the correct pin projection (handled by the ___PinData type)
+            let $field_place = unsafe {
+                <$name $(<$($generic),*>)? as $crate::place::___PinData>::___PinData::$field(
+                    ::core::ptr::addr_of_mut!((*$crate::place::___PlaceInit::___as_mut_ptr(&mut $var, &|_: &$name $(<$($generic),*>)?| {})).$field),
+                    &$var,
+                    ___LocalGuard,
+                )
+            };
+            // create a guard that will be used later, as we want to shadow the type definition to
+            // prevent misuse by a proc macro
+            let guard = ___LocalGuard;
+            {
+                // shadow the type def
+                #[doc(hidden)]
+                struct ___LocalGuard;
+                // unwrap the value produced by the function immediatly, do not give access to the
+                // raw InitProof. Validate using the guard, if guard would be used a second time,
+                // then a move error would occur.
+                result = $crate::init::InitProof::unwrap($($call)*, guard);
+            }
+        }
+        $(let $binding = result;)?
+        // create a mutable reference to the object, it can now be used, because it was initalized.
+        let $field = {
+            unsafe {
+                &mut *::core::ptr::addr_of_mut!((*$crate::place::___PlaceInit::___as_mut_ptr(&mut $var, &|_: &$name $(<$($generic),*>)?| {})).$field)
+            }
+        };
+        // do not complain, if it is not used.
+        #[allow(unused_variables)]
+        let $field = $field;
     };
 }
 
