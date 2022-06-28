@@ -79,10 +79,18 @@ macro_rules! init {
     ($func:ident $(:: $(<$($args:ty),*$(,)?>::)? $path:ident)*($var:expr; $($rest:tt)*)) => {
         match $var {
             mut var => {
-                let () = $crate::init::InitProof::unwrap($func $(:: $(<$($args),*>::)? $path)* (unsafe {
-                    // SAFETY: we own `var` and assume it is initialized below
-                    $crate::place::___PlaceInit::___init_me(&mut var)
-                } $($rest)*));
+                {
+                    struct ___LocalGuard;
+                    let value = unsafe {
+                        // SAFETY: we own `var` and assume it is initialized below
+                        $crate::place::___PlaceInit::___init_me(&mut var, ___LocalGuard)
+                    };
+                    let guard = ___LocalGuard;
+                    {
+                        struct ___LocalGuard;
+                        let () = $crate::init::InitProof::unwrap($func $(:: $(<$($args),*>::)? $path)* (value $($rest)*), guard);
+                    }
+                }
                 unsafe {
                     // SAFETY: The pointee was initialized by the function above and the InitProof
                     // was valid.
@@ -218,20 +226,20 @@ macro_rules! init {
 macro_rules! pin_data {
     (
         $(#[$struct_attr:meta])*
-        $vis:vis struct $name:ident $(<$($generic:ident),* $(,)?>)? $(where $($whr:path : $bound:ty),* $(,)?)? {
+        $vis:vis struct $name:ident $(<$($($life:lifetime),+ $(,)?)? $($generic:ident $(: ?$sized:ident)?),* $(,)?>)? $(where $($whr:path : $bound:ty),* $(,)?)? {
             $(
                 $(#$pin:ident)?
                 $(#[$attr:meta])*
-                $field:ident : $type:ty
+                $fvis:vis $field:ident : $type:ty
             ),*
             $(,)?
         }
     ) => {
         $(#[$struct_attr])*
-        $vis struct $name $(<$($generic),*>)? $(where $($whr : $bound),*)? {
+        $vis struct $name $(<$($($life),+ ,)? $($generic $(: ?$sized)?),*>)? $(where $($whr : $bound),*)? {
             $(
                 $(#[$attr])*
-                $field: $type
+                $fvis $field: $type
             ),*
         }
 
@@ -240,23 +248,23 @@ macro_rules! pin_data {
 
             impl ___ThePinData {
                 $(
-                    pin_data!(@make_fn(($vis) $($pin)? $field: $type));
+                    $crate::pin_data!(@make_fn(($fvis) $($pin)? $field: $type));
                 )*
             }
 
-            unsafe impl$(<$($generic),*>)? $crate::place::___PinData for $name$(<$($generic),*>)? {
+            unsafe impl$(<$($($life),+ ,)? $($generic $(: ?$sized)?),*>)? $crate::place::___PinData for $name$(<$($($life),+ ,)? $($generic),*>)? {
                 type ___PinData = ___ThePinData;
             }
         };
     };
     (@make_fn(($vis:vis) pin $field:ident : $type:ty)) => {
         $vis unsafe fn $field<'a, T, P: $crate::place::___PlaceInit + $crate::place::___PinnedPlace, G>(ptr: *mut T, _place: &P, guard: G) -> $crate::init::PinInitMe<'a, T, G> {
-            $crate::init::PinInitMe::___new(ptr, guard)
+            unsafe { $crate::init::PinInitMe::___new(ptr, guard) }
         }
     };
     (@make_fn(($vis:vis) $field:ident : $type:ty)) => {
         $vis unsafe fn $field<'a, T,P: $crate::place::___PlaceInit, G>(ptr: *mut T, _place: &P, guard: G) -> $crate::init::InitMe<'a, T, G> {
-            $crate::init::InitMe::___new(ptr, guard)
+            unsafe { $crate::init::InitMe::___new(ptr, guard) }
         }
     };
 }
