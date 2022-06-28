@@ -76,12 +76,12 @@ unsafe impl<'a, T: ?Sized, G> ___PlaceInit for InitMe<'a, T, G> {
     type Init = InitProof<(), G>;
     type Raw = T;
     type InitMe<'b, GG>
-    = InitMe<'b, T, G>
+    = InitMe<'b, T, GG>
     where
         Self: 'b
     ;
 
-    unsafe fn ___init_me<GG>(&mut self, _guard: GG) -> Self::InitMe<'_, G> {
+    unsafe fn ___init_me<GG>(&mut self, _guard: GG) -> Self::InitMe<'_, GG> {
         InitMe {
             ptr: self.ptr,
             _phantom: PhantomData,
@@ -196,12 +196,12 @@ unsafe impl<'a, T: ?Sized, G> ___PlaceInit for PinInitMe<'a, T, G> {
     type Init = InitProof<(), G>;
     type Raw = T;
     type InitMe<'b, GG>
-    = PinInitMe<'b, T, G>
+    = PinInitMe<'b, T, GG>
     where
         Self: 'b
     ;
 
-    unsafe fn ___init_me<GG>(&mut self, _guard: GG) -> Self::InitMe<'_, G> {
+    unsafe fn ___init_me<GG>(&mut self, _guard: GG) -> Self::InitMe<'_, GG> {
         PinInitMe {
             ptr: self.ptr,
             _phantom: PhantomData,
