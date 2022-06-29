@@ -1,4 +1,4 @@
-use crate::{InitMe, PinInitMe};
+use crate::{init::InitPointer, InitMe, PinInitMe};
 use core::{mem::MaybeUninit, pin::Pin};
 
 /// Central trait to facilitate initialization. Every partially initable Place should implement this type.
@@ -19,7 +19,7 @@ pub unsafe trait PartialInitPlace {
     type Raw: ?Sized;
     /// This type should either be `PinInit<'a, Self::Raw, G>` or `InitMe<'a, Self::Raw, G>`.
     /// It is used to completely delegate the initialization to a single function.
-    type InitMe<'a, G>
+    type InitMe<'a, G>: InitPointer<'a, Self::Raw, G>
     where
         Self: 'a;
 
@@ -33,16 +33,10 @@ pub unsafe trait PartialInitPlace {
     /// # Safety
     ///
     /// The caller guarantees that this function is only called from macros of this library.
-    ///
-    /// # Implementors
-    /// To anyone implementing this function, look at the example implementations.
-    ///
-    /// Create a new `Self::InitMe` from the contained pointer. No side effects. Only use guard to
-    /// create the `Self::InitMe`.
-    /// After this function has been called, expect that the returned value will be used to
-    /// initialize the pointee and then expect a call to `___init`.
     #[doc(hidden)]
-    unsafe fn ___init_me<G>(&mut self, guard: G) -> Self::InitMe<'_, G>;
+    unsafe fn ___init_me<G>(&mut self, guard: G) -> Self::InitMe<'_, G> {
+        unsafe { InitPointer::___new(self.___as_mut_ptr(&|_| {}), guard) }
+    }
 
     /// # **WARNING: MACRO ONLY FUNCTION**
     ///
@@ -103,10 +97,6 @@ unsafe impl<T> PartialInitPlace for MaybeUninit<T> {
         Self: 'a
     ;
 
-    unsafe fn ___init_me<G>(&mut self, guard: G) -> Self::InitMe<'_, G> {
-        unsafe { InitMe::___new(self.as_mut_ptr(), guard) }
-    }
-
     unsafe fn ___init(self) -> Self::Init {
         unsafe { self.assume_init() }
     }
@@ -124,11 +114,6 @@ unsafe impl<T> PartialInitPlace for Box<MaybeUninit<T>> {
     where
         Self: 'a
     ;
-
-    unsafe fn ___init_me<G>(&mut self, guard: G) -> Self::InitMe<'_, G> {
-        unsafe { InitMe::___new(self.as_mut_ptr(), guard) }
-    }
-
     unsafe fn ___init(self) -> Self::Init {
         unsafe { self.assume_init() }
     }
@@ -151,12 +136,8 @@ where
     where
         Self: 'a
     ;
-
-    unsafe fn ___init_me<G>(&mut self, guard: G) -> Self::InitMe<'_, G> {
-        unsafe { PinInitMe::___new(self.___as_mut_ptr(&|_| {}), guard) }
-    }
-
     unsafe fn ___init(self) -> Self::Init {
+        // TODO is this safe?
         unsafe { Pin::new_unchecked(Pin::into_inner_unchecked(self).___init()) }
     }
 

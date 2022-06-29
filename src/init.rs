@@ -1,6 +1,29 @@
 use crate::place::*;
 use core::marker::PhantomData;
 
+mod sealed {
+    use super::*;
+    pub trait Sealed {}
+
+    impl<'a, T: ?Sized, G> Sealed for InitMe<'a, T, G> {}
+    impl<'a, T: ?Sized, G> Sealed for PinInitMe<'a, T, G> {}
+}
+
+pub trait InitPointer<'a, T: ?Sized, G>: sealed::Sealed {
+    /// # **WARNING: MACRO ONLY FUNCTION**
+    ///
+    /// This function is only designed to be called by the macros of this library.
+    /// Using it directly might run into **unexpected and undefined behavior!**
+    ///
+    /// I repeat: **DO NOT USE THIS FUNCTON!!**
+    ///
+    /// # Safety
+    ///
+    /// The caller guarantees that this function is only called from macros of this library.
+    #[doc(hidden)]
+    unsafe fn ___new(ptr: *mut T, guard: G) -> Self;
+}
+
 /// A pointer to an Uninitialized `T` there is no pinning guarantee, so the data might be moved
 /// after initialization.
 ///
@@ -14,7 +37,7 @@ pub struct InitMe<'a, T: ?Sized, G> {
     _phantom: PhantomData<(&'a mut T, fn(G) -> G)>,
 }
 
-impl<'a, T: ?Sized, G> InitMe<'a, T, G> {
+impl<'a, T: ?Sized, G> InitPointer<'a, T, G> for InitMe<'a, T, G> {
     /// # **WARNING: MACRO ONLY FUNCTION**
     ///
     /// This function is only designed to be called by the macros of this library.
@@ -26,13 +49,15 @@ impl<'a, T: ?Sized, G> InitMe<'a, T, G> {
     ///
     /// The caller guarantees that this function is only called from macros of this library.
     #[doc(hidden)]
-    pub unsafe fn ___new(ptr: *mut T, _guard: G) -> Self {
+    unsafe fn ___new(ptr: *mut T, _guard: G) -> Self {
         Self {
             ptr,
             _phantom: PhantomData,
         }
     }
+}
 
+impl<'a, T: ?Sized, G> InitMe<'a, T, G> {
     /// Unsafely assume that the value is initialized.
     ///
     /// # Safety
@@ -133,7 +158,7 @@ pub struct PinInitMe<'a, T: ?Sized, G> {
     _phantom: PhantomData<(&'a mut T, fn(G) -> G)>,
 }
 
-impl<'a, T: ?Sized, G> PinInitMe<'a, T, G> {
+impl<'a, T: ?Sized, G> InitPointer<'a, T, G> for PinInitMe<'a, T, G> {
     /// # **WARNING: MACRO ONLY FUNCTION**
     ///
     /// This function is only designed to be called by the macros of this library.
@@ -145,13 +170,15 @@ impl<'a, T: ?Sized, G> PinInitMe<'a, T, G> {
     ///
     /// The caller guarantees that this function is only called from macros of this library.
     #[doc(hidden)]
-    pub unsafe fn ___new(ptr: *mut T, _guard: G) -> Self {
+    unsafe fn ___new(ptr: *mut T, _guard: G) -> Self {
         Self {
             ptr,
             _phantom: PhantomData,
         }
     }
+}
 
+impl<'a, T: ?Sized, G> PinInitMe<'a, T, G> {
     /// Unsafely assume that the value is initialized.
     ///
     /// # Safety
