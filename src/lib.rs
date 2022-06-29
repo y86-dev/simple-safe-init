@@ -1,28 +1,246 @@
+//! Library to safely initialize structs.
+//!
+//! # Getting Started
+//! Suppose you have a struct that you want to initialize while it is pinned. Then you can just
+//! write:
+//! ```rust
+//! use core::{mem::MaybeUninit, pin::Pin, marker::PhantomPinned};
+//! use easy_init::*;
+//!
+//! struct MyPinnedStruct {
+//!     msg: String,
+//!     // this will be our field that depends upon the pinning
+//!     my_addr: usize,
+//!     _p: PhantomPinned,
+//! }
+//!
+//! impl MyPinnedStruct {
+//!     // a method that only works, if we are pinned
+//!     pub fn print_info(self: Pin<&mut Self>) {
+//!         println!("'{}' says MyPinnedStruct at {:X}", self.msg, self.my_addr);
+//!     }
+//! }
+//!
+//! // in main:
+//! // first we need some uninitialized memory, use `core::mem::MaybeUninit` for that:
+//! let my_struct = Box::pin(MaybeUninit::uninit());
+//! // for this example we need the address...
+//! let addr = my_struct.as_ptr() as usize;
+//! // now use the `init!` macro, first the expression you want to initialize, then a fat arrow and
+//! // its type. After that begins the initializer body. Use the `.$field` syntax to initialize a
+//! // field that the current module can access.
+//! let mut my_struct = init! { my_struct => MyPinnedStruct {
+//!     .msg = "Hello World".to_owned();
+//!     .my_addr = addr;
+//!     ._p = PhantomPinned;
+//! }};
+//! my_struct.as_mut().print_info();
+//! ```
+//! All of this without unsafe code and guarantees that you have not forgotten anything. A compile
+//! error is emitted, if
+//! - a field is missing.
+//! - a field is initialized twice.
+//!
+//!
+//! ## What about encapsulation?
+//!
+//! When you want your struct fields to remain private, but you still need pinned initialization,
+//! then you can write an initialization function:
+//! ```rust
+//! use core::{mem::MaybeUninit, pin::Pin, marker::PhantomPinned};
+//! use easy_init::*;
+//!
+//! mod structs {
+//!     use core::{mem::MaybeUninit, pin::Pin, marker::PhantomPinned};
+//!     use easy_init::*;
+//!
+//!
+//!     pub struct MyPinnedStruct {
+//!         msg: String,
+//!         // this will be our field that depends upon the pinning
+//!         my_addr: usize,
+//!         _p: PhantomPinned,
+//!     }
+//!
+//!     impl MyPinnedStruct {
+//!         // a method that only works, if we are pinned
+//!         pub fn print_info(self: Pin<&mut Self>) {
+//!             println!("'{}' says MyPinnedStruct at {:X}", self.msg, self.my_addr);
+//!         }
+//!
+//!         // this function is called an init function, it takes a `PinInitMe` as its first
+//!         // argument and returns an `InitProof` verifying the initialization.
+//!         // The generic argument `G` is called the guard type, it is needed to ensure soundness
+//!         // of the library.
+//!         // you can have any number of additional arguments
+//!         pub fn init<G>(mut this: PinInitMe<'_, Self, G>, msg: String) -> InitProof<(), G> {
+//!             // we still need the address for this example
+//!             let addr = this.as_mut_ptr() as usize;
+//!             // we still use the same syntax here!
+//!             init! { this => Self {
+//!                 ._p = PhantomPinned;
+//!                 .msg = msg;
+//!                 .my_addr = addr;
+//!             }}
+//!         }
+//!     }
+//! }
+//!
+//! // in main:
+//! // first we need some uninitialized memory, use `core::mem::MaybeUninit` for that:
+//! let my_struct = Box::pin(MaybeUninit::uninit());
+//! // now we cannot use the code from before, because the fields of the struct are private...
+//! // but we declared the init function earlier, so we just use that:
+//! let mut my_struct = init!(structs::MyPinnedStruct::init(my_struct, "Hello World".to_owned()));
+//! my_struct.as_mut().print_info();
+//! ```
+//! See [guard-parameter] to understand why he type parameter is needed.
+//!
+//!
+//! ## Nested types
+//!
+//! When you are using more complex types, initializing nested types is also necessary, here is how
+//! to do it:
+//! ```rust
+//! use easy_init::*;
+//! use core::{marker::PhantomPinned, mem::MaybeUninit};
+//!
+//! struct NamedCounter {
+//!     msg: String,
+//!     count: usize,
+//!     // for some reason this type needs pinning...
+//!     _p: PhantomPinned,
+//! }
+//!
+//! impl NamedCounter {
+//!     pub fn init<G>(this: PinInitMe<'_, Self, G>, msg: String) -> InitProof<(), G> {
+//!         init! { this => Self {
+//!             .msg = msg;
+//!             .count = 0;
+//!             ._p = PhantomPinned;
+//!         }}
+//!     }
+//! }
+//!
+//! // we need to tell the macro which fields are structually pinned
+//! pin_data! {
+//!     struct Bar {
+//!         #pin
+//!         first: NamedCounter,
+//!         #pin
+//!         second: NamedCounter,
+//!     }
+//! }
+//!
+//! let bar = Box::pin(MaybeUninit::uninit());
+//! let bar = init! { bar => Bar {
+//!     // you can use the init functions like this:
+//!     // only the first argument can be a field though.
+//!     NamedCounter::init(.first, "First".to_owned());
+//!     NamedCounter::init(.second, "Second".to_owned());
+//! }};
+//! ```
+//!
+//! ## Macro initialization
+//!
+//! If you have defined some macros which can initialize values, then you can use them like this:
+//! ```rust
+//! use core::{mem::MaybeUninit, pin::Pin, marker::PhantomPinned};
+//! use easy_init::*;
+//!
+//! // we also need to tell the macro what fields are structually pinned.
+//! pin_data! {
+//!     struct MyPinnedStruct {
+//!         msg: String,
+//!         // this will be our field that depends upon the pinning
+//!         my_addr: usize,
+//!         _p: PhantomPinned,
+//!     }
+//! }
+//!
+//! impl MyPinnedStruct {
+//!     // a method that only works, if we are pinned
+//!     pub fn print_info(self: Pin<&mut Self>) {
+//!         println!("'{}' says MyPinnedStruct at {:X}", self.msg, self.my_addr);
+//!     }
+//! }
+//!
+//! // init macro
+//! macro_rules! init_addr {
+//!     ($addr:expr, $val:expr) => {
+//!         $addr.write($val)
+//!         // need to return expression evaluating to InitProof
+//!     }
+//! }
+//!
+//! // in main:
+//! // first we need some uninitialized memory, use `core::mem::MaybeUninit` for that:
+//! let my_struct = Box::pin(MaybeUninit::uninit());
+//! // for this example we need the address...
+//! let addr = my_struct.as_ptr() as usize;
+//! let mut my_struct = init! { my_struct => MyPinnedStruct {
+//!     // same syntax as function calls
+//!     init_addr!(.my_addr, addr);
+//!     ._p = PhantomPinned;
+//!     .msg = "Hello World".to_owned();
+//! }};
+//! my_struct.as_mut().print_info();
+//! ```
+//!
+//! # Smart Pointer Support
+//! See [`___PlaceInit`].
+//!
+//!
+//!
+//! # In Depth Explanations
+//!
+//! ## Guard Parameter
+//!
+//! If there were no guard parameter, then it would be possible to vouch for initializing something
+//! by providing an InitProof generated by initializing something else.
+//!
+//! Because of this parameter it is only possible to vouch for initializing the thing connected
+//! with that guard parameter. It is essential that a guard parameter is only used once, the macros
+//! provided by this library always follow this invariant.
+//!
+//! ## How does `init!` work?
+//!
+
 #![feature(new_uninit, generic_associated_types)]
 #![deny(unsafe_op_in_unsafe_fn)]
+
 pub mod init;
 pub mod place;
 
 pub use init::*;
 
+mod tests;
+
 /// # Overview
 /// This macro is the core of this library, there are several ways to initialize fields of structs.
 /// Here is an example:
-/// ```rust
-/// struct Foo<T> {
-///     msg: String,
-///     limit: usize,
-///     value: T,
-///     inner: InnerFoo,
-///     bar: isize,
+/// ```rust,no_run
+/// use easy_init::*;
+/// use core::mem::MaybeUninit;
+///
+/// pin_data! {
+///     struct Foo<T> {
+///         msg: String,
+///         limit: usize,
+///         value: T,
+///         inner: InnerFoo,
+///         bar: isize,
+///     }
 /// }
 ///
 /// struct InnerFoo {
 ///     x: u8,
 /// }
 ///
-/// fn init_limit<G>(limit: InitMe<'_, usize, G>, limit_type: u8) -> InitProof<(), G> {
-///     extern fn __init_limit(ptr: *mut usize, typ: u8);
+/// fn init_limit<G>(mut limit: InitMe<'_, usize, G>, limit_type: u8) -> InitProof<(), G> {
+///     extern "C" {
+///         fn __init_limit(ptr: *mut usize, typ: u8);
+///     }
 ///     unsafe {
 ///         // SAFETY: `__init_limit` initializes the pointee
 ///         __init_limit(limit.as_mut_ptr(), limit_type);
@@ -31,7 +249,7 @@ pub use init::*;
 /// }
 ///
 /// macro_rules! init_inner {
-///     ($inner:ident, $val:lit) => {
+///     ($inner:ident, $val:expr) => {
 ///         // this macro needs to return an expression that returns an InitProof
 ///         $inner.write($val)
 ///     };
@@ -41,16 +259,15 @@ pub use init::*;
 ///     bar.write(1).ret(1)
 /// }
 ///
-/// let foo = Box::pin(MaybeUninit::<Foo>::uninit());
-/// // first specify the expression you wans to initialize, then specify the exact type with
-/// generics
+/// let foo = Box::pin(MaybeUninit::<Foo<f64>>::uninit());
+/// // first specify the expression you wans to initialize, then specify the exact type with generics
 /// init! { foo => Foo<f64> {
 ///     // just normally assign the variable
 ///     .msg = "Hello World".to_owned();
 ///     // use a delegation function
 ///     init_limit(.limit, 0);
 ///     // use a delagation macro
-///     init_inner!(.inner, 16);
+///     init_inner!(.inner, InnerFoo { x: 16 });
 ///     // you can use already initalized values
 ///     .value = (*limit) as f64;
 ///     // get the return value from an init function
@@ -76,7 +293,7 @@ macro_rules! init {
             }
         }
     };
-    ($func:ident $(:: $(<$($args:ty),*$(,)?>::)? $path:ident)*($var:expr; $($rest:tt)*)) => {
+    ($func:ident $(:: $(<$($args:ty),*$(,)?>::)? $path:ident)*($var:expr $(, $($rest:tt)*)?)) => {
         match $var {
             mut var => {
                 {
@@ -88,7 +305,7 @@ macro_rules! init {
                     let guard = ___LocalGuard;
                     {
                         struct ___LocalGuard;
-                        let () = $crate::init::InitProof::unwrap($func $(:: $(<$($args),*>::)? $path)* (value $($rest)*), guard);
+                        let () = $crate::init::InitProof::unwrap($func $(:: $(<$($args),*>::)? $path)* (value $(, $($rest)*)?), guard);
                     }
                 }
                 unsafe {
