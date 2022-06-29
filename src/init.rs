@@ -17,7 +17,7 @@ pub struct InitMe<'a, T: ?Sized, G> {
 impl<'a, T: ?Sized, G> InitMe<'a, T, G> {
     /// # **WARNING: MACRO ONLY FUNCTION**
     ///
-    /// This function is only designed to be used within the macros of this library.
+    /// This function is only designed to be called by the macros of this library.
     /// Using it directly might run into **unexpected and undefined behavior!**
     ///
     /// I repeat: **DO NOT USE THIS FUNCTON!!**
@@ -90,7 +90,7 @@ unsafe impl<'a, T: ?Sized, G> PartialInitPlace for InitMe<'a, T, G> {
 
     /// # **WARNING: MACRO ONLY FUNCTION**
     ///
-    /// This function is only designed to be used within the macros of this library.
+    /// This function is only designed to be called by the macros of this library.
     /// Using it directly might run into **unexpected and undefined behavior!**
     ///
     /// I repeat: **DO NOT USE THIS FUNCTON!!**
@@ -107,7 +107,7 @@ unsafe impl<'a, T: ?Sized, G> PartialInitPlace for InitMe<'a, T, G> {
 
     /// # **WARNING: MACRO ONLY FUNCTION**
     ///
-    /// This function is only designed to be used within the macros of this library.
+    /// This function is only designed to be called by the macros of this library.
     /// Using it directly might run into **unexpected and undefined behavior!**
     ///
     /// I repeat: **DO NOT USE THIS FUNCTON!!**
@@ -136,7 +136,7 @@ pub struct PinInitMe<'a, T: ?Sized, G> {
 impl<'a, T: ?Sized, G> PinInitMe<'a, T, G> {
     /// # **WARNING: MACRO ONLY FUNCTION**
     ///
-    /// This function is only designed to be used within the macros of this library.
+    /// This function is only designed to be called by the macros of this library.
     /// Using it directly might run into **unexpected and undefined behavior!**
     ///
     /// I repeat: **DO NOT USE THIS FUNCTON!!**
@@ -210,7 +210,7 @@ unsafe impl<'a, T: ?Sized, G> PartialInitPlace for PinInitMe<'a, T, G> {
 
     /// # **WARNING: MACRO ONLY FUNCTION**
     ///
-    /// This function is only designed to be used within the macros of this library.
+    /// This function is only designed to be called by the macros of this library.
     /// Using it directly might run into **unexpected and undefined behavior!**
     ///
     /// I repeat: **DO NOT USE THIS FUNCTON!!**
@@ -227,7 +227,7 @@ unsafe impl<'a, T: ?Sized, G> PartialInitPlace for PinInitMe<'a, T, G> {
 
     /// # **WARNING: MACRO ONLY FUNCTION**
     ///
-    /// This function is only designed to be used within the macros of this library.
+    /// This function is only designed to be called by the macros of this library.
     /// Using it directly might run into **unexpected and undefined behavior!**
     ///
     /// I repeat: **DO NOT USE THIS FUNCTON!!**

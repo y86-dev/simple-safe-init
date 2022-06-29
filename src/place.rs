@@ -3,6 +3,10 @@ use core::{mem::MaybeUninit, pin::Pin};
 
 /// Central trait to facilitate initialization. Every partially initable Place should implement this type.
 ///
+/// If you need to implement this type, pay close attention to the comments on the methods of this
+/// trait. You need to strictly adhere to the invariants listed, otherwise this library cannot
+/// guarantee the soundness of your programm.
+///
 /// # Safety
 ///
 /// This trait requires that partially initialized values of type `Raw` can be stored and initialiezd
@@ -10,7 +14,8 @@ use core::{mem::MaybeUninit, pin::Pin};
 pub unsafe trait PartialInitPlace {
     /// This is the type `Self` will become, when everything is fully initialized.
     type Init;
-    /// This is the actual raw type that needs to be initialized.
+    /// This is the actual raw type that needs to be initialized. For smart pointers this is the
+    /// pointee type.
     type Raw: ?Sized;
     /// This type should either be `PinInit<'a, Self::Raw, G>` or `InitMe<'a, Self::Raw, G>`.
     /// It is used to completely delegate the initialization to a single function.
@@ -20,7 +25,7 @@ pub unsafe trait PartialInitPlace {
 
     /// # **WARNING: MACRO ONLY FUNCTION**
     ///
-    /// This function is only designed to be used within the macros of this library.
+    /// This function is only designed to be called by the macros of this library.
     /// Using it directly might run into **unexpected and undefined behavior!**
     ///
     /// I repeat: **DO NOT USE THIS FUNCTON!!**
@@ -34,12 +39,14 @@ pub unsafe trait PartialInitPlace {
     ///
     /// Create a new `Self::InitMe` from the contained pointer. No side effects. Only use guard to
     /// create the `Self::InitMe`.
+    /// After this function has been called, expect that the returned value will be used to
+    /// initialize the pointee and then expect a call to `___init`.
     #[doc(hidden)]
     unsafe fn ___init_me<G>(&mut self, guard: G) -> Self::InitMe<'_, G>;
 
     /// # **WARNING: MACRO ONLY FUNCTION**
     ///
-    /// This function is only designed to be used within the macros of this library.
+    /// This function is only designed to be called by the macros of this library.
     /// Using it directly might run into **unexpected and undefined behavior!**
     ///
     /// I repeat: **DO NOT USE THIS FUNCTON!!**
@@ -61,7 +68,7 @@ pub unsafe trait PartialInitPlace {
 
     /// # **WARNING: MACRO ONLY FUNCTION**
     ///
-    /// This function is only designed to be used within the macros of this library.
+    /// This function is only designed to be called by the macros of this library.
     /// Using it directly might run into **unexpected and undefined behavior!**
     ///
     /// I repeat: **DO NOT USE THIS FUNCTON!!**
