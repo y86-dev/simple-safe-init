@@ -188,7 +188,7 @@
 //! ```
 //!
 //! # Smart Pointer Support
-//! See [`___PlaceInit`].
+//! See [`PartialInitPlace`].
 //!
 //!
 //!
@@ -288,7 +288,7 @@ macro_rules! init {
                 unsafe {
                     // SAFETY: The pointee of `var` has been fully initialized, if this part is
                     // reachable and no compile error exists.
-                    $crate::place::___PlaceInit::___init(var)
+                    $crate::place::PartialInitPlace::___init(var)
                 }
             }
         }
@@ -300,7 +300,7 @@ macro_rules! init {
                     struct ___LocalGuard;
                     let value = unsafe {
                         // SAFETY: we own `var` and assume it is initialized below
-                        $crate::place::___PlaceInit::___init_me(&mut var, ___LocalGuard)
+                        $crate::place::PartialInitPlace::___init_me(&mut var, ___LocalGuard)
                     };
                     let guard = ___LocalGuard;
                     {
@@ -311,7 +311,7 @@ macro_rules! init {
                 unsafe {
                     // SAFETY: The pointee was initialized by the function above and the InitProof
                     // was valid.
-                    $crate::place::___PlaceInit::___init(var)
+                    $crate::place::PartialInitPlace::___init(var)
                 }
             }
         }
@@ -339,7 +339,7 @@ macro_rules! init {
                 // memory. we only use ptr::write, which is allowed
                 ::core::ptr::write(
                     ::core::ptr::addr_of_mut!(
-                        (*$crate::place::___PlaceInit::___as_mut_ptr(&mut $var, &|_: &$name $(<$($generic),*>)?|  {})).$field
+                        (*$crate::place::PartialInitPlace::___as_mut_ptr(&mut $var, &|_: &$name $(<$($generic),*>)?|  {})).$field
                     ),
                     val
                 );
@@ -348,7 +348,7 @@ macro_rules! init {
         let $field = {
             unsafe {
                 // we initialized the memory above, so we can now create a reference
-                &mut *::core::ptr::addr_of_mut!((*$crate::place::___PlaceInit::___as_mut_ptr(&mut $var, &|_: &$name $(<$($generic),*>)?| {})).$field)
+                &mut *::core::ptr::addr_of_mut!((*$crate::place::PartialInitPlace::___as_mut_ptr(&mut $var, &|_: &$name $(<$($generic),*>)?| {})).$field)
             }
         };
         #[allow(unused_variables)]
@@ -408,7 +408,7 @@ macro_rules! init {
             // get the correct pin projection (handled by the ___PinData type)
             let $field_place = unsafe {
                 <$name $(<$($generic),*>)? as $crate::place::___PinData>::___PinData::$field(
-                    ::core::ptr::addr_of_mut!((*$crate::place::___PlaceInit::___as_mut_ptr(&mut $var, &|_: &$name $(<$($generic),*>)?| {})).$field),
+                    ::core::ptr::addr_of_mut!((*$crate::place::PartialInitPlace::___as_mut_ptr(&mut $var, &|_: &$name $(<$($generic),*>)?| {})).$field),
                     &$var,
                     ___LocalGuard,
                 )
@@ -430,7 +430,7 @@ macro_rules! init {
         // create a mutable reference to the object, it can now be used, because it was initalized.
         let $field = {
             unsafe {
-                &mut *::core::ptr::addr_of_mut!((*$crate::place::___PlaceInit::___as_mut_ptr(&mut $var, &|_: &$name $(<$($generic),*>)?| {})).$field)
+                &mut *::core::ptr::addr_of_mut!((*$crate::place::PartialInitPlace::___as_mut_ptr(&mut $var, &|_: &$name $(<$($generic),*>)?| {})).$field)
             }
         };
         // do not complain, if it is not used.
@@ -475,12 +475,12 @@ macro_rules! pin_data {
         };
     };
     (@make_fn(($vis:vis) pin $field:ident : $type:ty)) => {
-        $vis unsafe fn $field<'a, T, P: $crate::place::___PlaceInit + $crate::place::___PinnedPlace, G>(ptr: *mut T, _place: &P, guard: G) -> $crate::init::PinInitMe<'a, T, G> {
+        $vis unsafe fn $field<'a, T, P: $crate::place::PartialInitPlace + $crate::place::___PinnedPlace, G>(ptr: *mut T, _place: &P, guard: G) -> $crate::init::PinInitMe<'a, T, G> {
             unsafe { $crate::init::PinInitMe::___new(ptr, guard) }
         }
     };
     (@make_fn(($vis:vis) $field:ident : $type:ty)) => {
-        $vis unsafe fn $field<'a, T,P: $crate::place::___PlaceInit, G>(ptr: *mut T, _place: &P, guard: G) -> $crate::init::InitMe<'a, T, G> {
+        $vis unsafe fn $field<'a, T,P: $crate::place::PartialInitPlace, G>(ptr: *mut T, _place: &P, guard: G) -> $crate::init::InitMe<'a, T, G> {
             unsafe { $crate::init::InitMe::___new(ptr, guard) }
         }
     };

@@ -72,7 +72,7 @@ impl<'a, T: ?Sized, G> InitMe<'a, T, G> {
 }
 
 #[doc(hidden)]
-unsafe impl<'a, T: ?Sized, G> ___PlaceInit for InitMe<'a, T, G> {
+unsafe impl<'a, T: ?Sized, G> PartialInitPlace for InitMe<'a, T, G> {
     type Init = InitProof<(), G>;
     type Raw = T;
     type InitMe<'b, GG>
@@ -192,7 +192,7 @@ impl<'a, T: ?Sized, G> PinInitMe<'a, T, G> {
 }
 
 #[doc(hidden)]
-unsafe impl<'a, T: ?Sized, G> ___PlaceInit for PinInitMe<'a, T, G> {
+unsafe impl<'a, T: ?Sized, G> PartialInitPlace for PinInitMe<'a, T, G> {
     type Init = InitProof<(), G>;
     type Raw = T;
     type InitMe<'b, GG>

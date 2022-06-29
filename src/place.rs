@@ -7,7 +7,7 @@ use core::{mem::MaybeUninit, pin::Pin};
 ///
 /// This trait requires that partially initialized values of type `Raw` can be stored and initialiezd
 /// values of type `Raw` can be stored by `Init`.
-pub unsafe trait ___PlaceInit {
+pub unsafe trait PartialInitPlace {
     /// This is the type `Self` will become, when everything is fully initialized.
     type Init;
     /// This is the actual raw type that needs to be initialized.
@@ -87,7 +87,7 @@ pub unsafe trait ___PlaceInit {
 /// The value at this place cannot be moved.
 pub unsafe trait ___PinnedPlace {}
 
-unsafe impl<T> ___PlaceInit for MaybeUninit<T> {
+unsafe impl<T> PartialInitPlace for MaybeUninit<T> {
     type Init = T;
     type Raw = T;
     type InitMe<'a, G>
@@ -109,7 +109,7 @@ unsafe impl<T> ___PlaceInit for MaybeUninit<T> {
     }
 }
 
-unsafe impl<T> ___PlaceInit for Box<MaybeUninit<T>> {
+unsafe impl<T> PartialInitPlace for Box<MaybeUninit<T>> {
     type Init = Box<T>;
     type Raw = T;
     type InitMe<'a, G>
@@ -131,11 +131,11 @@ unsafe impl<T> ___PlaceInit for Box<MaybeUninit<T>> {
     }
 }
 
-unsafe impl<P, T> ___PlaceInit for Pin<P>
+unsafe impl<P, T> PartialInitPlace for Pin<P>
 where
-    P: ___PlaceInit + core::ops::DerefMut<Target = T>,
+    P: PartialInitPlace + core::ops::DerefMut<Target = T>,
     P::Init: core::ops::Deref,
-    T: ___PlaceInit<Raw = P::Raw>,
+    T: PartialInitPlace<Raw = P::Raw>,
 {
     type Init = Pin<P::Init>;
     type Raw = P::Raw;
@@ -160,9 +160,9 @@ where
 
 unsafe impl<P, T> ___PinnedPlace for Pin<P>
 where
-    P: ___PlaceInit + core::ops::DerefMut<Target = T>,
+    P: PartialInitPlace + core::ops::DerefMut<Target = T>,
     P::Init: core::ops::Deref,
-    T: ___PlaceInit<Raw = P::Raw>,
+    T: PartialInitPlace<Raw = P::Raw>,
 {
 }
 
