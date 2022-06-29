@@ -18,7 +18,7 @@ pub unsafe trait ___PlaceInit {
     where
         Self: 'a;
 
-    /// # ⛔⛔**WARNING: MACRO ONLY FUNCTION**⛔⛔
+    /// # **WARNING: MACRO ONLY FUNCTION**
     ///
     /// This function is only designed to be used within the macros of this library.
     /// Using it directly might run into **unexpected and undefined behavior!**
@@ -37,7 +37,7 @@ pub unsafe trait ___PlaceInit {
     #[doc(hidden)]
     unsafe fn ___init_me<G>(&mut self, guard: G) -> Self::InitMe<'_, G>;
 
-    /// # ⛔⛔**WARNING: MACRO ONLY FUNCTION**⛔⛔
+    /// # **WARNING: MACRO ONLY FUNCTION**
     ///
     /// This function is only designed to be used within the macros of this library.
     /// Using it directly might run into **unexpected and undefined behavior!**
@@ -59,7 +59,7 @@ pub unsafe trait ___PlaceInit {
     #[doc(hidden)]
     unsafe fn ___init(self) -> Self::Init;
 
-    /// # ⛔⛔**WARNING: MACRO ONLY FUNCTION**⛔⛔
+    /// # **WARNING: MACRO ONLY FUNCTION**
     ///
     /// This function is only designed to be used within the macros of this library.
     /// Using it directly might run into **unexpected and undefined behavior!**

@@ -15,7 +15,7 @@ pub struct InitMe<'a, T: ?Sized, G> {
 }
 
 impl<'a, T: ?Sized, G> InitMe<'a, T, G> {
-    /// # ⛔⛔**WARNING: MACRO ONLY FUNCTION**⛔⛔
+    /// # **WARNING: MACRO ONLY FUNCTION**
     ///
     /// This function is only designed to be used within the macros of this library.
     /// Using it directly might run into **unexpected and undefined behavior!**
@@ -88,7 +88,7 @@ unsafe impl<'a, T: ?Sized, G> ___PlaceInit for InitMe<'a, T, G> {
         }
     }
 
-    /// # ⛔⛔**WARNING: MACRO ONLY FUNCTION**⛔⛔
+    /// # **WARNING: MACRO ONLY FUNCTION**
     ///
     /// This function is only designed to be used within the macros of this library.
     /// Using it directly might run into **unexpected and undefined behavior!**
@@ -105,7 +105,7 @@ unsafe impl<'a, T: ?Sized, G> ___PlaceInit for InitMe<'a, T, G> {
         }
     }
 
-    /// # ⛔⛔**WARNING: MACRO ONLY FUNCTION**⛔⛔
+    /// # **WARNING: MACRO ONLY FUNCTION**
     ///
     /// This function is only designed to be used within the macros of this library.
     /// Using it directly might run into **unexpected and undefined behavior!**
@@ -134,7 +134,7 @@ pub struct PinInitMe<'a, T: ?Sized, G> {
 }
 
 impl<'a, T: ?Sized, G> PinInitMe<'a, T, G> {
-    /// # ⛔⛔**WARNING: MACRO ONLY FUNCTION**⛔⛔
+    /// # **WARNING: MACRO ONLY FUNCTION**
     ///
     /// This function is only designed to be used within the macros of this library.
     /// Using it directly might run into **unexpected and undefined behavior!**
@@ -208,7 +208,7 @@ unsafe impl<'a, T: ?Sized, G> ___PlaceInit for PinInitMe<'a, T, G> {
         }
     }
 
-    /// # ⛔⛔**WARNING: MACRO ONLY FUNCTION**⛔⛔
+    /// # **WARNING: MACRO ONLY FUNCTION**
     ///
     /// This function is only designed to be used within the macros of this library.
     /// Using it directly might run into **unexpected and undefined behavior!**
@@ -225,7 +225,7 @@ unsafe impl<'a, T: ?Sized, G> ___PlaceInit for PinInitMe<'a, T, G> {
         }
     }
 
-    /// # ⛔⛔**WARNING: MACRO ONLY FUNCTION**⛔⛔
+    /// # **WARNING: MACRO ONLY FUNCTION**
     ///
     /// This function is only designed to be used within the macros of this library.
     /// Using it directly might run into **unexpected and undefined behavior!**
