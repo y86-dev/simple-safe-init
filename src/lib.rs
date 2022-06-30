@@ -405,11 +405,13 @@ macro_rules! init {
             // outside of this macro.
             #[doc(hidden)]
             struct ___LocalGuard;
+            let mut var = Some(&$var);
+            var = None;
             // get the correct pin projection (handled by the ___PinData type)
             let $field_place = unsafe {
                 <$name $(<$($generic),*>)? as $crate::place::___PinData>::___PinData::$field(
                     ::core::ptr::addr_of_mut!((*$crate::place::PartialInitPlace::___as_mut_ptr(&mut $var, &|_: &$name $(<$($generic),*>)?| {})).$field),
-                    &$var,
+                    var,
                     ___LocalGuard,
                 )
             };
@@ -475,12 +477,12 @@ macro_rules! pin_data {
         };
     };
     (@make_fn(($vis:vis) pin $field:ident : $type:ty)) => {
-        $vis unsafe fn $field<'a, T, P: $crate::place::PartialInitPlace + $crate::place::___PinnedPlace, G>(ptr: *mut T, _place: &P, guard: G) -> $crate::init::PinInitMe<'a, T, G> {
+        $vis unsafe fn $field<'a, T, P: $crate::place::PartialInitPlace + $crate::place::___PinnedPlace, G>(ptr: *mut T, _place: Option<&P>, guard: G) -> $crate::init::PinInitMe<'a, T, G> {
             unsafe { $crate::init::PinInitMe::___new(ptr, guard) }
         }
     };
     (@make_fn(($vis:vis) $field:ident : $type:ty)) => {
-        $vis unsafe fn $field<'a, T,P: $crate::place::PartialInitPlace, G>(ptr: *mut T, _place: &P, guard: G) -> $crate::init::InitMe<'a, T, G> {
+        $vis unsafe fn $field<'a, T,P: $crate::place::PartialInitPlace, G>(ptr: *mut T, _place: Option<&P>, guard: G) -> $crate::init::InitMe<'a, T, G> {
             unsafe { $crate::init::InitMe::___new(ptr, guard) }
         }
     };
