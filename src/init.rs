@@ -267,7 +267,7 @@ unsafe impl<'a, T: ?Sized, G> PartialInitPlace for PinInitMe<'a, T, G> {
     }
 }
 
-unsafe impl<'a, T, G> ___PinnedPlace for PinInitMe<'a, T, G> {}
+unsafe impl<'a, T, G> PinnedPlace for PinInitMe<'a, T, G> {}
 
 /// Proof to show, that a value was indeed initialized.
 ///

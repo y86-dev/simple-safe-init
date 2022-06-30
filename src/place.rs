@@ -86,7 +86,7 @@ pub unsafe trait PartialInitPlace {
 ///
 /// # Safety
 /// The value at this place cannot be moved.
-pub unsafe trait ___PinnedPlace {}
+pub unsafe trait PinnedPlace {}
 
 unsafe impl<T> PartialInitPlace for MaybeUninit<T> {
     type Init = T;
@@ -146,7 +146,7 @@ where
     }
 }
 
-unsafe impl<P, T> ___PinnedPlace for Pin<P>
+unsafe impl<P, T> PinnedPlace for Pin<P>
 where
     P: PartialInitPlace + core::ops::DerefMut<Target = T>,
     P::Init: core::ops::Deref,
