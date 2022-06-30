@@ -84,3 +84,60 @@ fn basic() {}
 /// ```
 ///
 fn delegate() {}
+
+/// ```rust,compile_fail
+/// use easy_init::*;
+/// use core::mem::MaybeUninit;
+///
+/// #[derive(Debug)]
+/// struct Foo {
+///     a: u32,
+///     b: u64,
+/// }
+///
+/// impl Foo {
+///     pub fn init_foo<G>(foo: InitMe<'_, Self, G>, dbg: &str) -> InitProof<(), G> {
+///         println!("{}", dbg);
+///         init! { foo => Foo {
+///             .a = 42;
+///             .b = 36;
+///         }}
+///     }
+/// }
+///
+/// let foo = MaybeUninit::uninit();
+/// let foo = init!(Foo::init_foo(foo));
+/// println!("{:?}", foo);
+/// let foo = MaybeUninit::uninit();
+/// let foo = init!(Foo::init_foo(foo,));
+/// println!("{:?}", foo);
+/// ```
+///
+/// ```rust,compile_fail
+/// use easy_init::*;
+/// use core::mem::MaybeUninit;
+///
+/// #[derive(Debug)]
+/// struct Foo {
+///     a: u32,
+///     b: u64,
+/// }
+///
+/// impl Foo {
+///     pub fn init_foo<G>(foo: InitMe<'_, Self, G>) -> InitProof<(), G> {
+///         init! { foo => Foo {
+///             .a = 42;
+///             .b = 36;
+///         }}
+///     }
+/// }
+///
+/// let foo = MaybeUninit::uninit();
+/// let foo = init!(Foo::init_foo(foo, "first"));
+/// println!("{:?}", foo);
+/// let foo = MaybeUninit::uninit();
+/// let foo = init!(Foo::init_foo(foo, "second"));
+/// println!("{:?}", foo);
+/// ```
+///
+fn bad_delegate() {}
