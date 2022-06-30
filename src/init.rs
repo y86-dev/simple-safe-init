@@ -15,7 +15,7 @@ pub trait InitPointer<'a, T: ?Sized, G>: sealed::Sealed {
     /// This function is only designed to be called by the macros of this library.
     /// Using it directly might run into **unexpected and undefined behavior!**
     ///
-    /// I repeat: **DO NOT USE THIS FUNCTON!!**
+    /// I repeat: **DO NOT USE THIS FUNCTION!!**
     ///
     /// # Safety
     ///
@@ -30,7 +30,7 @@ pub trait InitPointer<'a, T: ?Sized, G>: sealed::Sealed {
 /// *Implementation Detail:*
 ///
 /// The second type parameter `G` is a guard type value. It is used to ensure that this object
-/// returns a unique `InitProof<(), G>` that cannot be used to vouche for any other initialization
+/// returns a unique `InitProof<(), G>` that cannot be used to vouch for any other initialization
 /// except this one.
 pub struct InitMe<'a, T: ?Sized, G> {
     ptr: *mut T,
@@ -43,7 +43,7 @@ impl<'a, T: ?Sized, G> InitPointer<'a, T, G> for InitMe<'a, T, G> {
     /// This function is only designed to be called by the macros of this library.
     /// Using it directly might run into **unexpected and undefined behavior!**
     ///
-    /// I repeat: **DO NOT USE THIS FUNCTON!!**
+    /// I repeat: **DO NOT USE THIS FUNCTION!!**
     ///
     /// # Safety
     ///
@@ -118,7 +118,7 @@ unsafe impl<'a, T: ?Sized, G> PartialInitPlace for InitMe<'a, T, G> {
     /// This function is only designed to be called by the macros of this library.
     /// Using it directly might run into **unexpected and undefined behavior!**
     ///
-    /// I repeat: **DO NOT USE THIS FUNCTON!!**
+    /// I repeat: **DO NOT USE THIS FUNCTION!!**
     ///
     /// # Safety
     ///
@@ -135,7 +135,7 @@ unsafe impl<'a, T: ?Sized, G> PartialInitPlace for InitMe<'a, T, G> {
     /// This function is only designed to be called by the macros of this library.
     /// Using it directly might run into **unexpected and undefined behavior!**
     ///
-    /// I repeat: **DO NOT USE THIS FUNCTON!!**
+    /// I repeat: **DO NOT USE THIS FUNCTION!!**
     ///
     /// # Safety
     ///
@@ -151,7 +151,7 @@ unsafe impl<'a, T: ?Sized, G> PartialInitPlace for InitMe<'a, T, G> {
 /// *Implementation Detail:*
 ///
 /// The second type parameter `G` is a guard type value. It is used to ensure that this object
-/// returns a unique `InitProof<(), G>` that cannot be used to vouche for any other initialization
+/// returns a unique `InitProof<(), G>` that cannot be used to vouch for any other initialization
 /// except this one.
 pub struct PinInitMe<'a, T: ?Sized, G> {
     ptr: *mut T,
@@ -164,7 +164,7 @@ impl<'a, T: ?Sized, G> InitPointer<'a, T, G> for PinInitMe<'a, T, G> {
     /// This function is only designed to be called by the macros of this library.
     /// Using it directly might run into **unexpected and undefined behavior!**
     ///
-    /// I repeat: **DO NOT USE THIS FUNCTON!!**
+    /// I repeat: **DO NOT USE THIS FUNCTION!!**
     ///
     /// # Safety
     ///
@@ -240,7 +240,7 @@ unsafe impl<'a, T: ?Sized, G> PartialInitPlace for PinInitMe<'a, T, G> {
     /// This function is only designed to be called by the macros of this library.
     /// Using it directly might run into **unexpected and undefined behavior!**
     ///
-    /// I repeat: **DO NOT USE THIS FUNCTON!!**
+    /// I repeat: **DO NOT USE THIS FUNCTION!!**
     ///
     /// # Safety
     ///
@@ -257,7 +257,7 @@ unsafe impl<'a, T: ?Sized, G> PartialInitPlace for PinInitMe<'a, T, G> {
     /// This function is only designed to be called by the macros of this library.
     /// Using it directly might run into **unexpected and undefined behavior!**
     ///
-    /// I repeat: **DO NOT USE THIS FUNCTON!!**
+    /// I repeat: **DO NOT USE THIS FUNCTION!!**
     ///
     /// # Safety
     ///

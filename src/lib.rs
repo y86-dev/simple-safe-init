@@ -122,7 +122,7 @@
 //!     }
 //! }
 //!
-//! // we need to tell the macro which fields are structually pinned
+//! // we need to tell the macro which fields are structurally pinned
 //! pin_data! {
 //!     struct Bar {
 //!         #pin
@@ -148,7 +148,7 @@
 //! use core::{mem::MaybeUninit, pin::Pin, marker::PhantomPinned};
 //! use easy_init::*;
 //!
-//! // we also need to tell the macro what fields are structually pinned.
+//! // we also need to tell the macro what fields are structurally pinned.
 //! pin_data! {
 //!     struct MyPinnedStruct {
 //!         msg: String,
@@ -260,15 +260,15 @@ mod tests;
 /// }
 ///
 /// let foo = Box::pin(MaybeUninit::<Foo<f64>>::uninit());
-/// // first specify the expression you wans to initialize, then specify the exact type with generics
+/// // first specify the expression you want to initialize, then specify the exact type with generics
 /// init! { foo => Foo<f64> {
 ///     // just normally assign the variable
 ///     .msg = "Hello World".to_owned();
 ///     // use a delegation function
 ///     init_limit(.limit, 0);
-///     // use a delagation macro
+///     // use a delegation macro
 ///     init_inner!(.inner, InnerFoo { x: 16 });
-///     // you can use already initalized values
+///     // you can use already initialized values
 ///     .value = (*limit) as f64;
 ///     // get the return value from an init function
 ///     ~let val = init_bar(.bar);
@@ -287,7 +287,7 @@ macro_rules! init {
                 $crate::init!(@inner(var _is_pinned () $struct $(<$($generic),*>)?) $($tail)*);
                 unsafe {
                     // SAFETY: The pointee of `var` has been fully initialized, if this part is
-                    // reachable and no compile error exists.
+                    // reachable and no compile error exist.
                     $crate::place::PartialInitPlace::___init(var)
                 }
             }
@@ -355,7 +355,7 @@ macro_rules! init {
         let $field = $field;
         $crate::init!(@inner($var $pin ($($inner)* $field: ::core::todo!(),) $name $(<$($generic),*>)?) $($tail)*);
     };
-    // a function call initializing a single field, we cannot use the `path` metavariable type,
+    // a function call initializing a single field, we cannot use the `path` meta-variable type,
     // because `(` is not allowed after that :(
     (@inner($var:ident $pin:ident ($($inner:tt)*) $name:ident $(<$($generic:ty),*>)?)
         $(~let $binding:pat = )?$func:ident $(:: $(<$($args:ty),*$(,)?>::)? $path:ident)*(.$field:ident $($rest:tt)*);
@@ -401,7 +401,7 @@ macro_rules! init {
         let result;
         {
             // this type is used as the guard parameter on `(Pin)InitMe` and ensures that we
-            // definetly initialize the specified field. we scope it here, to ensure no usage
+            // definitely initialize the specified field. we scope it here, to ensure no usage
             // outside of this macro.
             #[doc(hidden)]
             struct ___LocalGuard;
@@ -422,14 +422,14 @@ macro_rules! init {
                 // shadow the type def
                 #[doc(hidden)]
                 struct ___LocalGuard;
-                // unwrap the value produced by the function immediatly, do not give access to the
+                // unwrap the value produced by the function immediately, do not give access to the
                 // raw InitProof. Validate using the guard, if guard would be used a second time,
                 // then a move error would occur.
                 result = $crate::init::InitProof::unwrap($($call)*, guard);
             }
         }
         $(let $binding = result;)?
-        // create a mutable reference to the object, it can now be used, because it was initalized.
+        // create a mutable reference to the object, it can now be used, because it was initialized.
         let $field = {
             unsafe {
                 &mut *::core::ptr::addr_of_mut!((*$crate::place::PartialInitPlace::___as_mut_ptr(&mut $var, &|_: &$name $(<$($generic),*>)?| {})).$field)
@@ -477,7 +477,7 @@ macro_rules! pin_data {
         };
     };
     (@make_fn(($vis:vis) pin $field:ident : $type:ty)) => {
-        $vis unsafe fn $field<'a, T, P: $crate::place::PartialInitPlace + $crate::place::PinnedPlace, G>(ptr: *mut T, _place: Option<&P>, guard: G) -> $crate::init::PinInitMe<'a, T, G> {
+        $vis unsafe fn $field<'a, T, P: $crate::place::PinnedPlace, G>(ptr: *mut T, _place: Option<&P>, guard: G) -> $crate::init::PinInitMe<'a, T, G> {
             unsafe { $crate::init::PinInitMe::___new(ptr, guard) }
         }
     };

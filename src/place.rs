@@ -1,15 +1,15 @@
 use crate::{init::InitPointer, InitMe, PinInitMe};
 use core::{mem::MaybeUninit, pin::Pin};
 
-/// Central trait to facilitate initialization. Every partially initable Place should implement this type.
+/// Central trait to facilitate initialization. Every partially init-able Place should implement this type.
 ///
 /// If you need to implement this type, pay close attention to the comments on the methods of this
 /// trait. You need to strictly adhere to the invariants listed, otherwise this library cannot
-/// guarantee the soundness of your programm.
+/// guarantee the soundness of your program.
 ///
 /// # Safety
 ///
-/// This trait requires that partially initialized values of type `Raw` can be stored and initialiezd
+/// This trait requires that partially initialized values of type `Raw` can be stored and initialized
 /// values of type `Raw` can be stored by `Init`.
 pub unsafe trait PartialInitPlace {
     /// This is the type `Self` will become, when everything is fully initialized.
@@ -28,7 +28,7 @@ pub unsafe trait PartialInitPlace {
     /// This function is only designed to be called by the macros of this library.
     /// Using it directly might run into **unexpected and undefined behavior!**
     ///
-    /// I repeat: **DO NOT USE THIS FUNCTON!!**
+    /// I repeat: **DO NOT USE THIS FUNCTION!!**
     ///
     /// # Safety
     ///
@@ -43,7 +43,7 @@ pub unsafe trait PartialInitPlace {
     /// This function is only designed to be called by the macros of this library.
     /// Using it directly might run into **unexpected and undefined behavior!**
     ///
-    /// I repeat: **DO NOT USE THIS FUNCTON!!**
+    /// I repeat: **DO NOT USE THIS FUNCTION!!**
     ///
     /// # Safety
     ///
@@ -65,7 +65,7 @@ pub unsafe trait PartialInitPlace {
     /// This function is only designed to be called by the macros of this library.
     /// Using it directly might run into **unexpected and undefined behavior!**
     ///
-    /// I repeat: **DO NOT USE THIS FUNCTON!!**
+    /// I repeat: **DO NOT USE THIS FUNCTION!!**
     ///
     /// # Safety
     ///
@@ -86,7 +86,7 @@ pub unsafe trait PartialInitPlace {
 ///
 /// # Safety
 /// The value at this place cannot be moved.
-pub unsafe trait PinnedPlace {}
+pub unsafe trait PinnedPlace: PartialInitPlace {}
 
 unsafe impl<T> PartialInitPlace for MaybeUninit<T> {
     type Init = T;
@@ -154,6 +154,9 @@ where
 {
 }
 
+
+
+/// DO NOT IMPLEMENT MANUALLY, use the `pin_data!` macro.
 #[doc(hidden)]
 pub unsafe trait ___PinData {
     #[doc(hidden)]
