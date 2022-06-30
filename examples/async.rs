@@ -1,5 +1,5 @@
 use core::mem::MaybeUninit;
-use easy_init::*;
+use simple_safe_init::*;
 
 // very inefficient but testing only executor
 mod executor {

@@ -1,5 +1,5 @@
 use core::mem::MaybeUninit;
-use easy_init::*;
+use simple_safe_init::*;
 
 pin_data! {
     #[derive(Debug)]
@@ -15,7 +15,7 @@ fn init_usize<G>(val: InitMe<'_, usize, G>) -> InitProof<(), G> {
 
 pub mod nested {
     pub mod foo {
-        use easy_init::*;
+        use simple_safe_init::*;
         pub struct Bar<T>(T);
         impl<T> Bar<T> {
             pub fn baz<G>(val: InitMe<'_, T, G>, v: T) -> InitProof<(), G> {

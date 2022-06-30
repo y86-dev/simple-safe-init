@@ -5,7 +5,7 @@
 //! write:
 //! ```rust
 //! use core::{mem::MaybeUninit, pin::Pin, marker::PhantomPinned};
-//! use easy_init::*;
+//! use simple_safe_init::*;
 //!
 //! struct MyPinnedStruct {
 //!     msg: String,
@@ -48,11 +48,11 @@
 //! then you can write an initialization function:
 //! ```rust
 //! use core::{mem::MaybeUninit, pin::Pin, marker::PhantomPinned};
-//! use easy_init::*;
+//! use simple_safe_init::*;
 //!
 //! mod structs {
 //!     use core::{mem::MaybeUninit, pin::Pin, marker::PhantomPinned};
-//!     use easy_init::*;
+//!     use simple_safe_init::*;
 //!
 //!
 //!     pub struct MyPinnedStruct {
@@ -102,7 +102,7 @@
 //! When you are using more complex types, initializing nested types is also necessary, here is how
 //! to do it:
 //! ```rust
-//! use easy_init::*;
+//! use simple_safe_init::*;
 //! use core::{marker::PhantomPinned, mem::MaybeUninit};
 //!
 //! struct NamedCounter {
@@ -146,7 +146,7 @@
 //! If you have defined some macros which can initialize values, then you can use them like this:
 //! ```rust
 //! use core::{mem::MaybeUninit, pin::Pin, marker::PhantomPinned};
-//! use easy_init::*;
+//! use simple_safe_init::*;
 //!
 //! // we also need to tell the macro what fields are structurally pinned.
 //! pin_data! {
@@ -220,7 +220,7 @@ mod tests;
 /// This macro is the core of this library, there are several ways to initialize fields of structs.
 /// Here is an example:
 /// ```rust,no_run
-/// use easy_init::*;
+/// use simple_safe_init::*;
 /// use core::mem::MaybeUninit;
 ///
 /// pin_data! {

@@ -1,6 +1,6 @@
 #![feature(generic_associated_types)]
 use core::{cell::UnsafeCell, marker::PhantomPinned, mem::MaybeUninit};
-use easy_init::*;
+use simple_safe_init::*;
 
 #[derive(Debug)]
 #[repr(C)]

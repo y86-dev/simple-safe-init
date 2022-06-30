@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 /// ```rust,compile_fail
-/// use easy_init::*;
+/// use simple_safe_init::*;
 /// use core::mem::MaybeUninit;
 ///
 /// #[derive(Debug)]
@@ -19,7 +19,7 @@
 fn prevent_missing_field() {}
 
 /// ```rust,compile_fail
-/// use easy_init::*;
+/// use simple_safe_init::*;
 /// use core::mem::MaybeUninit;
 ///
 /// #[derive(Debug)]
@@ -39,7 +39,7 @@ fn prevent_missing_field() {}
 fn prevent_duplicate() {}
 
 /// ```rust
-/// use easy_init::*;
+/// use simple_safe_init::*;
 /// use core::mem::MaybeUninit;
 ///
 /// #[derive(Debug)]
@@ -58,7 +58,7 @@ fn prevent_duplicate() {}
 fn basic() {}
 
 /// ```rust
-/// use easy_init::*;
+/// use simple_safe_init::*;
 /// use core::mem::MaybeUninit;
 ///
 /// #[derive(Debug)]
@@ -86,7 +86,7 @@ fn basic() {}
 fn delegate() {}
 
 /// ```rust,compile_fail
-/// use easy_init::*;
+/// use simple_safe_init::*;
 /// use core::mem::MaybeUninit;
 ///
 /// #[derive(Debug)]
@@ -114,7 +114,7 @@ fn delegate() {}
 /// ```
 ///
 /// ```rust,compile_fail
-/// use easy_init::*;
+/// use simple_safe_init::*;
 /// use core::mem::MaybeUninit;
 ///
 /// #[derive(Debug)]

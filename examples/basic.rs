@@ -1,5 +1,5 @@
 use core::{mem::MaybeUninit, num::NonZeroU32};
-use easy_init::*;
+use simple_safe_init::*;
 
 pin_data! {
     #[derive(Debug)]
