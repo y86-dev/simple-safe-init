@@ -16,7 +16,7 @@
 /// println!("{:?}", foo);
 /// ```
 ///
-fn prevent_missing_field(){}
+fn prevent_missing_field() {}
 
 /// ```rust,compile_fail
 /// use easy_init::*;
@@ -36,7 +36,7 @@ fn prevent_missing_field(){}
 /// println!("{:?}", foo);
 /// ```
 ///
-fn prevent_duplicate(){}
+fn prevent_duplicate() {}
 
 /// ```rust
 /// use easy_init::*;
@@ -55,7 +55,7 @@ fn prevent_duplicate(){}
 /// println!("{:?}", foo);
 /// ```
 ///
-fn basic(){}
+fn basic() {}
 
 /// ```rust
 /// use easy_init::*;
@@ -83,4 +83,4 @@ fn basic(){}
 /// println!("{:?}", foo);
 /// ```
 ///
-fn delegate(){}
+fn delegate() {}

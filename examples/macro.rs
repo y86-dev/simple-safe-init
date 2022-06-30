@@ -1,6 +1,6 @@
 #![feature(generic_associated_types)]
-use easy_init::*;
 use core::mem::MaybeUninit;
+use easy_init::*;
 
 macro_rules! init_int {
     ($var:ident) => {
