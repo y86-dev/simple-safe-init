@@ -1,35 +1,51 @@
 //! Library to safely initialize structs.
 //!
 //! # Getting Started
-//! Suppose you have a struct that you want to initialize while it is pinned. Then you can just
-//! write:
+//! Suppose you have a struct that you want to initialize while it is pinned. For Example:
 //! ```rust
 //! use core::{mem::MaybeUninit, pin::Pin, marker::PhantomPinned};
 //! use simple_safe_init::*;
 //!
-//! struct MyPinnedStruct {
+//! struct SelfReferentialStruct {
 //!     msg: String,
 //!     // this will be our field that depends upon the pinning
-//!     my_addr: usize,
+//!     my_addr: *const SelfReferentialStruct,
 //!     _p: PhantomPinned,
 //! }
 //!
-//! impl MyPinnedStruct {
+//! impl SelfReferentialStruct {
 //!     // a method that only works, if we are pinned
 //!     pub fn print_info(self: Pin<&mut Self>) {
-//!         println!("'{}' says MyPinnedStruct at {:X}", self.msg, self.my_addr);
+//!         println!("'{}' says SelfReferentialStruct at {:p}", self.msg, self.my_addr);
 //!     }
 //! }
+//! ```
 //!
-//! // in main:
+//! In order to initialize this struct, we need the address of the struct itself! But we only can
+//! have the address, if we have pinned the struct. Thus we need to first pin an uninitialized
+//! version of the struct and then initialize it:
+//! ```rust
+//! # use core::{mem::MaybeUninit, pin::Pin, marker::PhantomPinned};
+//! # use simple_safe_init::*;
+//!
+//! # struct SelfReferentialStruct {
+//! #     msg: String,
+//! #     // this will be our field that depends upon the pinning
+//! #     my_addr: *const SelfReferentialStruct,
+//! #     _p: PhantomPinned,
+//! # }
+//! #
+//! # impl SelfReferentialStruct {
+//! #     // a method that only works, if we are pinned
+//! #     pub fn print_info(self: Pin<&mut Self>) {
+//! #         println!("'{}' says SelfReferentialStruct at {:p}", self.msg, self.my_addr);
+//! #     }
+//! # }
 //! // first we need some uninitialized memory, use `core::mem::MaybeUninit` for that:
 //! let my_struct = Box::pin(MaybeUninit::uninit());
-//! // for this example we need the address...
-//! let addr = my_struct.as_ptr() as usize;
-//! // now use the `init!` macro, first the expression you want to initialize, then a fat arrow and
-//! // its type. After that begins the initializer body. Use the `.$field` syntax to initialize a
-//! // field that the current module can access.
-//! let mut my_struct = init! { my_struct => MyPinnedStruct {
+//! // `init!` consumes its input, so we need to retrive the pointer here
+//! let addr = my_struct.as_ptr();
+//! let mut my_struct = init! { my_struct => SelfReferentialStruct {
 //!     .msg = "Hello World".to_owned();
 //!     .my_addr = addr;
 //!     ._p = PhantomPinned;
@@ -42,10 +58,11 @@
 //! - a field is initialized twice.
 //!
 //!
+//!
 //! ## What about encapsulation?
 //!
 //! When you want your struct fields to remain private, but you still need pinned initialization,
-//! then you can write an initialization function:
+//! then you can delegate the initialization to a custom init function:
 //! ```rust
 //! use core::{mem::MaybeUninit, pin::Pin, marker::PhantomPinned};
 //! use simple_safe_init::*;
@@ -68,7 +85,7 @@
 //!             println!("'{}' says MyPinnedStruct at {:X}", self.msg, self.my_addr);
 //!         }
 //!
-//!         // this function is called an init function, it takes a `PinInitMe` as its first
+//!         // this is an init function, it takes a `PinInitMe` as its first
 //!         // argument and returns an `InitProof` verifying the initialization.
 //!         // The generic argument `G` is called the guard type, it is needed to ensure soundness
 //!         // of the library.
@@ -99,8 +116,8 @@
 //!
 //! ## Nested types
 //!
-//! When you are using more complex types, initializing nested types is also necessary, here is how
-//! to do it:
+//! When you are using more complex types, initializing nested types is also necessary. You can use
+//! the `pin_data!` macro to define which fields are structurally pinned.
 //! ```rust
 //! use simple_safe_init::*;
 //! use core::{marker::PhantomPinned, mem::MaybeUninit};
