@@ -1,4 +1,6 @@
-//! Library to safely initialize structs.
+//! Library to safely initialize pinned structs.
+//!
+//! This library uses a delcarative macro to make initializing structs safe and more ergonomic.
 //!
 //! # Getting Started
 //! Suppose you have a struct that you want to initialize while it is pinned. For Example:
@@ -27,7 +29,6 @@
 //! ```rust
 //! # use core::{mem::MaybeUninit, pin::Pin, marker::PhantomPinned};
 //! # use simple_safe_init::*;
-//!
 //! # struct SelfReferentialStruct {
 //! #     msg: String,
 //! #     // this will be our field that depends upon the pinning
@@ -52,10 +53,15 @@
 //! }};
 //! my_struct.as_mut().print_info();
 //! ```
+//! The `init!` macro takes the value you want to initialize, its type and an initializer.
+//! Within the initializer you can use arbitrary rust statements. To initialize there are a couple
+//! of special statements with custom syntax. One of them is: `.$field = $expr;` initializes the field
+//! with the given expression. See [here](#custom-syntax-list) for a complete list of the custom syntax.
+//!
 //! All of this without unsafe code and guarantees that you have not forgotten anything. A compile
 //! error is emitted, if
-//! - a field is missing.
-//! - a field is initialized twice.
+//! - a field is missing,
+//! - a field is initialized multiple times.
 //!
 //!
 //!
@@ -89,6 +95,7 @@
 //!         // argument and returns an `InitProof` verifying the initialization.
 //!         // The generic argument `G` is called the guard type, it is needed to ensure soundness
 //!         // of the library.
+//!         //
 //!         // you can have any number of additional arguments
 //!         pub fn init<G>(mut this: PinInitMe<'_, Self, G>, msg: String) -> InitProof<(), G> {
 //!             // we still need the address for this example
@@ -103,8 +110,7 @@
 //!     }
 //! }
 //!
-//! // in main:
-//! // first we need some uninitialized memory, use `core::mem::MaybeUninit` for that:
+//! // we again need some uninitialized memory, use `core::mem::MaybeUninit` for that:
 //! let my_struct = Box::pin(MaybeUninit::uninit());
 //! // now we cannot use the code from before, because the fields of the struct are private...
 //! // but we declared the init function earlier, so we just use that:
@@ -203,6 +209,9 @@
 //! }};
 //! my_struct.as_mut().print_info();
 //! ```
+//!
+//! ## Custom syntax list
+//! There are two different
 //!
 //! # Smart Pointer Support
 //! See [`PartialInitPlace`].
