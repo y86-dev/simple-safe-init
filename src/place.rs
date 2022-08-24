@@ -1,4 +1,6 @@
 use crate::{InitMe, InitPointer, PinInitMe};
+#[cfg(feature = "std")]
+use alloc::boxed::Box;
 use core::{mem::MaybeUninit, pin::Pin};
 
 /// Central trait to facilitate initialization. Every partially init-able Place should implement this type.
@@ -106,6 +108,7 @@ unsafe impl<T> PartialInitPlace for MaybeUninit<T> {
     }
 }
 
+#[cfg(feature = "std")]
 unsafe impl<T> PartialInitPlace for Box<MaybeUninit<T>> {
     type Init = Box<T>;
     type Raw = T;
@@ -188,6 +191,7 @@ pub enum BoxAllocErr<E> {
     BoxAlloc,
 }
 
+#[cfg(feature = "std")]
 impl<A: AllocablePlace> AllocablePlace for Box<A>
 where
     Box<A>: PartialInitPlace,
