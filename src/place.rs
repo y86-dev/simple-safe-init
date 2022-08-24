@@ -1,4 +1,4 @@
-use crate::{init::InitPointer, InitMe, PinInitMe};
+use crate::{InitMe, InitPointer, PinInitMe};
 use core::{mem::MaybeUninit, pin::Pin};
 
 /// Central trait to facilitate initialization. Every partially init-able Place should implement this type.
@@ -154,7 +154,104 @@ where
 {
 }
 
+/// A [PartialInitPlace] that can be allocated without any extra parameters (it is fully
+/// uninitialized).
+pub trait AllocablePlace: Sized + PartialInitPlace {
+    type Error;
 
+    /// Allocate a place of this kind. This might fail.
+    fn allocate() -> Result<Self, Self::Error>;
+}
+
+impl<T> AllocablePlace for MaybeUninit<T> {
+    type Error = !;
+
+    fn allocate() -> Result<Self, Self::Error> {
+        Ok(MaybeUninit::uninit())
+    }
+}
+
+impl<A: AllocablePlace> AllocablePlace for Pin<A>
+where
+    Pin<A>: From<A> + PartialInitPlace,
+{
+    type Error = A::Error;
+
+    fn allocate() -> Result<Self, A::Error> {
+        Ok(Pin::from(A::allocate()?))
+    }
+}
+
+#[derive(Debug)]
+pub enum BoxAllocErr<E> {
+    Nested(E),
+    BoxAlloc,
+}
+
+impl<A: AllocablePlace> AllocablePlace for Box<A>
+where
+    Box<A>: PartialInitPlace,
+{
+    type Error = BoxAllocErr<A::Error>;
+
+    fn allocate() -> Result<Self, Self::Error> {
+        Ok(
+            Box::try_new(A::allocate().map_err(|e| BoxAllocErr::Nested(e))?)
+                .map_err(|_| BoxAllocErr::BoxAlloc)?,
+        )
+    }
+}
+
+/// # Safety
+/// Only use this type in static fields and initialize the contents before they are being used
+/// (deref for example).
+pub struct StaticInit<T> {
+    inner: MaybeUninit<T>,
+}
+
+impl<T> StaticInit<T> {
+    /// # Safety
+    /// You need to initialize the contents via the init! macro.
+    pub const unsafe fn new() -> Self {
+        Self {
+            inner: MaybeUninit::uninit(),
+        }
+    }
+}
+
+impl<T> core::ops::Deref for StaticInit<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        unsafe {
+            // SAFETY: our type invariants dictates that our value has been initialized.
+            self.inner.assume_init_ref()
+        }
+    }
+}
+
+impl<T> core::ops::DerefMut for StaticInit<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        unsafe {
+            // SAFETY: our type invariant dictates that our value has been initialized.
+            self.inner.assume_init_mut()
+        }
+    }
+}
+
+unsafe impl<T> PartialInitPlace for StaticInit<T> {
+    type Init = !;
+    type Raw = T;
+    type InitMe<'a, G> = PinInitMe<'a, T, G> where Self: 'a;
+
+    unsafe fn ___init(self) -> Self::Init {
+        panic!("this function is not designed to be called!")
+    }
+
+    unsafe fn ___as_mut_ptr(&mut self, _proof: &impl FnOnce(&Self::Raw)) -> *mut Self::Raw {
+        self.inner.as_mut_ptr()
+    }
+}
 
 /// DO NOT IMPLEMENT MANUALLY, use the `pin_data!` macro.
 #[doc(hidden)]
