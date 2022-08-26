@@ -1,6 +1,10 @@
-/// # Overview
-/// This macro is the core of this library, there are several ways to initialize fields of structs.
-/// Here is an example:
+/// Fundamental macro used to initialize structs.
+///
+/// Take a look at the [introduction on the main page]. Here you can find some bigger and more
+/// comprehensive examples.
+///
+/// [introduction on the main page]: crate
+///
 /// ```rust,no_run
 /// use simple_safe_init::*;
 /// use core::mem::MaybeUninit;
@@ -265,6 +269,14 @@ macro_rules! init {
     };
 }
 
+/// Used to specify the pin information of the fields of a struct.
+///
+/// This is somewhat similar in purpose as
+/// [pin-project-lite](https://crates.io/crates/pin-project-lite).
+/// Place this macro around a struct definition and then `#pin` in front of the attributes of each
+/// field you want to have structually pinned.
+///
+/// TODO: fuse with it or reimplement it?
 #[macro_export]
 macro_rules! pin_data {
     (
@@ -273,7 +285,7 @@ macro_rules! pin_data {
             $(
                 $(#$pin:ident)?
                 $(#[$attr:meta])*
-                $fvis:vis $field:ident : $type:ty
+                $fvis:vis $field:ident : $typ:ty
             ),*
             $(,)?
         }
@@ -282,7 +294,7 @@ macro_rules! pin_data {
         $vis struct $name $(<$($($life),+ ,)? $($generic $(: ?$sized)?),*>)? $(where $($whr : $bound),*)? {
             $(
                 $(#[$attr])*
-                $fvis $field: $type
+                $fvis $field: $typ
             ),*
         }
 
@@ -291,7 +303,7 @@ macro_rules! pin_data {
 
             impl ___ThePinData {
                 $(
-                    $crate::pin_data!(@@make_fn(($fvis) $($pin)? $field: $type));
+                    $crate::pin_data!(@@make_fn(($fvis) $($pin)? $field: $typ));
                 )*
             }
 
@@ -300,28 +312,95 @@ macro_rules! pin_data {
             }
         };
     };
-    (@@make_fn(($vis:vis) pin $field:ident : $type:ty)) => {
+    (@@make_fn(($vis:vis) pin $field:ident : $typ:ty)) => {
         $vis unsafe fn $field<'a, T, P: $crate::place::PinnedPlace, G>(ptr: *mut T, _place: Option<&P>, guard: G) -> $crate::PinInitMe<'a, T, G> {
             unsafe { <$crate::PinInitMe<'a, T, G> as $crate::InitPointer<'a, T, G>>::___new(ptr, guard) }
         }
     };
-    (@@make_fn(($vis:vis) $field:ident : $type:ty)) => {
+    (@@make_fn(($vis:vis) $field:ident : $typ:ty)) => {
         $vis unsafe fn $field<'a, T,P: $crate::place::PartialInitPlace, G>(ptr: *mut T, _place: Option<&P>, guard: G) -> $crate::InitMe<'a, T, G> {
             unsafe { <$crate::InitMe<'a, T, G> as $crate::InitPointer<'a, T, G>>::___new(ptr, guard) }
         }
     };
 }
 
+/// Allocates and pins a struct on the stack, then initializes it.
+///
+/// When you need to use a struct directly without allocating memory on the heap, you can use this
+/// macro to create a pinned variable on the stack.
+///
+/// Example:
+/// ```rust
+/// use core::marker::PhantomPinned;
+/// use simple_safe_init::*;
+///
+/// pin_data! {
+///     #[derive(Debug)]
+///     struct Count {
+///         #pin
+///         count: usize,
+///         #pin
+///         _pin: PhantomPinned,
+///     }
+/// }
+///
+/// stack_init!(count: Count => {
+///     .count = 42;
+///     ._pin = PhantomPinned;
+/// });
+/// println!("{:?}", count);
+/// ```
+/// After the fat arrow an initializer is expected, its input is propagated to the [`init!`] macro.
+/// There is also an alternative syntax when you want to call an init-function (example from the
+/// main page):
+/// ```rust
+/// use core::{mem::MaybeUninit, pin::Pin, marker::PhantomPinned};
+/// use simple_safe_init::*;
+///
+/// mod structs {
+///     use core::{mem::MaybeUninit, pin::Pin, marker::PhantomPinned};
+///     use simple_safe_init::*;
+///
+///
+///     pub struct MyPinnedStruct {
+///         msg: String,
+///         // this will be our field that depends upon the pinning
+///         my_addr: usize,
+///         _p: PhantomPinned,
+///     }
+///
+///     impl MyPinnedStruct {
+///         // a method that only works, if we are pinned
+///         pub fn print_info(self: Pin<&mut Self>) {
+///             println!("'{}' says MyPinnedStruct at {:X}", self.msg, self.my_addr);
+///         }
+///
+///         pub fn init<G>(mut this: PinInitMe<'_, Self, G>, msg: String) -> InitProof<(), G> {
+///             let addr = this.as_mut_ptr() as usize;
+///             init! { this => Self {
+///                 ._p = PhantomPinned;
+///                 .msg = msg;
+///                 .my_addr = addr;
+///             }}
+///         }
+///     }
+/// }
+/// use structs::MyPinnedStruct;
+///
+/// stack_init!(my_struct: MyPinnedStruct => (MyPinnedStruct::init(my_struct, "Hello World".to_owned())));
+/// my_struct.as_mut().print_info();
+/// ```
+///
 #[macro_export]
 macro_rules! stack_init {
-    ($var:ident: $typ:ty => { $($tail:tt)* }) => {
-        let mut $var: ::core::mem::MaybeUninit<$typ> = ::core::mem::MaybeUninit::uninit();
+    ($var:ident: $typ:ident $(<$($generic:ty),*>)? => { $($tail:tt)* }) => {
+        let mut $var: ::core::mem::MaybeUninit<$typ $(<$($generic),*>)?> = ::core::mem::MaybeUninit::uninit();
         {
             struct ___LocalGuard;
             let tmp = unsafe {
                 // SAFETY: we never move out of $var and shadow it at the end so
                 // no one can move out of it.
-                <$crate::PinInitMe<$typ, ___LocalGuard> as $crate::InitPointer<$typ, ___LocalGuard>>::___new(
+                <$crate::PinInitMe<'_, $typ $(<$($generic),*>)?, ___LocalGuard> as $crate::InitPointer<'_, $typ $(<$($generic),*>)?, ___LocalGuard>>::___new(
                     ::core::mem::MaybeUninit::as_mut_ptr(&mut $var),
                     ___LocalGuard
                 )
@@ -330,7 +409,7 @@ macro_rules! stack_init {
             {
                 struct ___LocalGuard;
                 let () = $crate::InitProof::unwrap(
-                    $crate::init! { tmp => $typ { $($tail)* }},
+                    $crate::init! { tmp => $typ $(<$($generic),*>)? { $($tail)* }},
                     guard
                 );
             }
@@ -340,14 +419,14 @@ macro_rules! stack_init {
             ::core::pin::Pin::new_unchecked(::core::mem::MaybeUninit::assume_init_mut(&mut $var))
         };
     };
-    ($var:ident: $typ:ty => ( $($tail:tt)* )) => {
-        let mut $var: ::core::mem::MaybeUninit<$typ> = ::core::mem::MaybeUninit::uninit();
+    ($var:ident: $typ:ident $(<$($generic:ty),*>)? => ( $($tail:tt)* )) => {
+        let mut $var: ::core::mem::MaybeUninit<$typ $(<$($generic),*>)?> = ::core::mem::MaybeUninit::uninit();
         {
             struct ___LocalGuard;
             let $var = unsafe {
                 // SAFETY: we never move out of $var and shadow it at the end so
                 // no one can move out of it.
-                <$crate::PinInitMe<$typ, ___LocalGuard> as $crate::InitPointer<$typ, ___LocalGuard>>::___new(
+                <$crate::PinInitMe<'_, $typ $(<$($generic),*>)?, ___LocalGuard> as $crate::InitPointer<'_, $typ $(<$($generic),*>)?, ___LocalGuard>>::___new(
                     ::core::mem::MaybeUninit::as_mut_ptr(&mut $var),
                     ___LocalGuard
                 )
