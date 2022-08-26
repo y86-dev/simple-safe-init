@@ -44,7 +44,7 @@
 //! #     }
 //! # }
 //! let my_struct = Box::pin(MaybeUninit::uninit());
-//! // `init!` consumes its input, so we need to retrive the pointer here
+//! // [`init!`] consumes its input, so we need to retrive the pointer here
 //! let addr = my_struct.as_ptr();
 //! let mut my_struct = init! { my_struct => SelfReferentialStruct {
 //!     .msg = "Hello World".to_owned();
@@ -53,7 +53,7 @@
 //! }};
 //! my_struct.as_mut().print_info();
 //! ```
-//! The `init!` macro takes the value you want to initialize, its type and an initializer.
+//! The [`init!`] macro takes the value you want to initialize, its type and an initializer.
 //! Within the initializer you can use arbitrary rust statements. To initialize there are a couple
 //! of special statements with custom syntax. One of them is: `.$field = $expr;` it initializes the field
 //! with the given expression. See [here](#custom-syntax-list) for a complete list of the custom syntax.
@@ -118,7 +118,7 @@
 //! ```
 //! See [here](#guard-parameter) to understand why the type parameter is needed.
 //!
-//! When using `init!` with an init-function, then you can only use a single init-function, because
+//! When using [`init!`] with an init-function, then you can only use a single init-function, because
 //! it already fully initializes the struct. Just supply the allocated uninitialized memory for the
 //! struct as the first parameter.
 //!
@@ -165,9 +165,9 @@
 //!     NamedCounter::init(.second, "Second".to_owned());
 //! }};
 //! ```
-//! `pin_data!` informs the `init!` macro what fields are structually pinned by scanning for a
+//! `pin_data!` informs the [`init!`] macro what fields are structually pinned by scanning for a
 //! `#pin` before any attributes (remember that doc comments are also attributes).
-//! The `init!` macro creates an init-pointer from the given fields. Depending on the prescense of
+//! The [`init!`] macro creates an init-pointer from the given fields. Depending on the prescense of
 //! `#pin` it creates [`InitMe`] or [`PinInitMe`].
 //!
 //! ## Macro initialization
@@ -227,7 +227,7 @@
 //! ### Avoid creating [`MaybeUninit`]
 //! In the previous examples, we always had to create some uninitialized memory. It is very common
 //! to write `Box::pin(MaybeUninit::uninit())` or doing this with other smart pointers. For that
-//! reason the `init!` macro supports the following shortcut:
+//! reason the [`init!`] macro supports the following shortcut:
 //! ```rust
 //! use core::{mem::MaybeUninit, pin::Pin, marker::PhantomPinned};
 //! use simple_safe_init::*;
@@ -251,7 +251,7 @@
 //!
 //! # Advanced Topics
 //! ## Custom syntax list
-//! There are two main ways of initializing with `init!`:
+//! There are two main ways of initializing with [`init!`]:
 //! ### Manual initialization
 //! This way you need to have access to all sturct fields and you will need to provide an
 //! initializer handling every field of the struct induvidually.
@@ -295,9 +295,37 @@
 //! with that guard parameter. It is essential that a guard parameter is only used once, the macros
 //! provided by this library always follow this invariant.
 //!
-//! ## How does `init!` work?
+//! ## How does [`init!`] work?
+//! This section is intended for readers trying to understand the inner workings of this libarary.
+//! If you only intend to use the library you do not need to read this section.
+//!
+//! The [`init!`] macro uses a combination of `unsafe`, special traits and a struct initializer to
+//! ensure safe initialization:
+//! ### Special Traits
+//! - [`PartialInitPlace`] marks types that can be used as memory locations for initialization,
+//! - [`PinnedPlace`] marks [`PartialInitPlace`]s which have stable addresses for the duration of
+//! their existence,
+//! - [`AllocablePlace`] marks [`PartialInitPlace`]s which can be allocated,
+//! - *(hidden)* `___PinData` is implemented by the `pin_data!` macro, it is used to uphold
+//! the correct pinning invariants for each of the fields.
+//!
+//! These traits are mostly used to ensure only the right types are used to house uninitialized
+//! values. For example, [`Box<T>`] cannot hold uninitialized values of type `T`. And
+//! `Box<MaybeUninit<T>>` cannot be used for a type that requires pinning.
+//! ### Unsafe
+//! To initialize uninitialized memory one either writes it using [`MaybeUninit::write`] or using
+//! raw pointers. The latter of course requires unsafe.
+//!
+//! When a user writes `.$field = $expr;` in the initializer, [`init!`] creates a raw pointer to
+//! `field` and uses [`core::ptr::write`] to set it to `expr`.
+//!
+//! When a user writes `$func(.$field);`, then a raw pointer is again created and used to create a
+//! [`InitMe`] or [`PinInitMe`]. To do this a guard parameter is also required. It is currently
+//! implemented as a local type which is shadowed to prevent accidental/malicous use.
 //!
 //! [`MaybeUninit`]: [`core::mem::MaybeUninit`]
+//! [`MaybeUninit::write`]: [`core::mem::MaybeUninit::write`]
+//! [`Box<T>`]: [`alloc::boxed::Box<T>`]
 
 #![no_std]
 #![cfg_attr(feature = "std", feature(new_uninit))]
@@ -310,6 +338,7 @@ extern crate alloc;
 mod macros;
 pub mod place;
 
+#[cfg(tests)]
 mod tests;
 
 use crate::place::*;
@@ -357,7 +386,7 @@ pub trait InitPointer<'a, T: ?Sized, G>: sealed::Sealed + Pointer {
 /// The second type parameter `G` is a guard type value. It is used to ensure that this object
 /// returns a unique `InitProof<(), G>` that cannot be used to vouch for any other initialization
 /// except this one.
-/// See [TODO]() for an explanation on this parameter.
+/// See [here](#guard-parameter) for an explanation on this parameter.
 pub struct InitMe<'a, T: ?Sized, G> {
     ptr: *mut T,
     // We need the correct variance, so we only accept the exact type for `G`. `T` and `'a` should
@@ -521,6 +550,8 @@ unsafe impl<'a, T: ?Sized, G> PartialInitPlace for InitMe<'a, T, G> {
     unsafe fn ___as_mut_ptr(&mut self, _proof: &impl FnOnce(&Self::Raw)) -> *mut Self::Raw {
         self.ptr
     }
+
+    unsafe fn ___i_have_read_the_documetation_and_verified_that_everything_is_correct() {}
 }
 
 /// A pointer to an Uninitialized `T` with a pinning guarantee, so the data cannot be moved
@@ -531,7 +562,7 @@ unsafe impl<'a, T: ?Sized, G> PartialInitPlace for InitMe<'a, T, G> {
 /// The second type parameter `G` is a guard type value. It is used to ensure that this object
 /// returns a unique `InitProof<(), G>` that cannot be used to vouch for any other initialization
 /// except this one.
-/// See [TODO]() for an explanation on this parameter.
+/// See [here](#guard-parameter) for an explanation on this parameter.
 pub struct PinInitMe<'a, T: ?Sized, G> {
     ptr: *mut T,
     // We need the correct variance, so we only accept the exact type for `G`. `T` and `'a` should
@@ -704,6 +735,8 @@ unsafe impl<'a, T: ?Sized, G> PartialInitPlace for PinInitMe<'a, T, G> {
     unsafe fn ___as_mut_ptr(&mut self, _proof: &impl FnOnce(&Self::Raw)) -> *mut Self::Raw {
         self.ptr
     }
+
+    unsafe fn ___i_have_read_the_documetation_and_verified_that_everything_is_correct() {}
 }
 
 unsafe impl<'a, T: ?Sized, G> PinnedPlace for PinInitMe<'a, T, G> {}
@@ -715,7 +748,7 @@ unsafe impl<'a, T: ?Sized, G> PinnedPlace for PinInitMe<'a, T, G> {}
 ///
 /// The second parameter `G` is a guard type value that is set up and used by the macros to ensure
 /// sound initialization.
-/// See [TODO]() for an explanation on this parameter.
+/// See [here](#guard-parameter) for an explanation on this parameter.
 pub struct InitProof<T, G> {
     value: T,
     // correct invariance, we only accept the exact type G
@@ -776,7 +809,7 @@ impl<G> InitProof<(), G> {
 
 /// Workaround to avoid a clippy error lint.
 ///
-/// This prevents clippy denying code (diverging sub-expression) using the `init!`
+/// This prevents clippy denying code (diverging sub-expression) using the [`init!`]
 /// macro when it checks for correct field initialization.
 ///
 /// This is not really useful for normal code, because it always panics.

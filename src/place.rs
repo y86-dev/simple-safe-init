@@ -1,9 +1,16 @@
+//! Module marking memory locations and pointer usable for (pinned) initialization.
+//!
+//! Normally it should not be necessary to use types of this module directly. If you need to
+//! implement support for a smart pointer however, you need to implement [`PartialInitPlace`] for
+//! it. Please read the hidden documentation in the code for each of the functions you need to
+//! implement.
+
 use crate::{InitMe, InitPointer, PinInitMe};
 #[cfg(feature = "std")]
 use alloc::boxed::Box;
 use core::{mem::MaybeUninit, pin::Pin};
 
-/// Central trait to facilitate initialization. Every partially init-able Place should implement this type.
+/// Central trait to facilitate initialization. Every partially init-able place should implement this type.
 ///
 /// If you need to implement this type, pay close attention to the comments on the methods of this
 /// trait. You need to strictly adhere to the invariants listed, otherwise this library cannot
@@ -35,6 +42,10 @@ pub unsafe trait PartialInitPlace {
     /// # Safety
     ///
     /// The caller guarantees that this function is only called from macros of this library.
+    ///
+    /// # Implementing
+    ///
+    /// This function should not be implemented manually!
     #[doc(hidden)]
     unsafe fn ___init_me<G>(&mut self, guard: G) -> Self::InitMe<'_, G> {
         unsafe { InitPointer::___new(self.___as_mut_ptr(&|_| {}), guard) }
@@ -51,14 +62,21 @@ pub unsafe trait PartialInitPlace {
     ///
     /// The caller guarantees that this function is only called from macros of this library.
     ///
-    /// # Implementors
-    /// To anyone implementing this function, look at the example implementations.
+    /// # Implementing
     ///
     /// When this function is being called, the callee can assume that all fields of the `Raw`
     /// pointee have been initialized via access through the raw pointer.
     ///
     /// Some smart pointers have layouts that depend upon the type parameters, take care of the
-    /// translation in this function. No other side effects.
+    /// translation in this function. For example: [`Box<T>`] and [`Box<MaybeUninit<T>>`] **are
+    /// not** layout compatible, even though [`MaybeUninit<T>`] and `T` are! For more information
+    /// on this, view the [UCG](TODO) (unsafe code guidelines).
+    ///
+    /// No side effects allowed.
+    ///
+    /// [`Box<T>`]: [`alloc::boxed::Box`]
+    /// [`Box<MaybeUninit<T>>`]: [`core::mem::MaybeUninit`]
+    /// [`MaybeUninit<T>`]: [`core::mem::MaybeUninit`]
     #[doc(hidden)]
     unsafe fn ___init(self) -> Self::Init;
 
@@ -73,14 +91,17 @@ pub unsafe trait PartialInitPlace {
     ///
     /// The caller guarantees that this function is only called from macros of this library.
     ///
-    /// # Implementors
-    /// To anyone implementing this function, look at the example implementations.
+    /// # Implementing
     ///
-    /// Calling this function is only marked as unsafe, because it should not be called by normal
-    /// code. It should never induce UB or assume any other invariant is upheld.
-    /// Always return the same pointer. No side effects.
+    /// - calling this function is only marked as unsafe, because it should not be called by normal
+    /// code,
+    /// - always return the same pointer,
+    /// - no side effects allowed.
     #[doc(hidden)]
     unsafe fn ___as_mut_ptr(&mut self, _proof: &impl FnOnce(&Self::Raw)) -> *mut Self::Raw;
+
+    #[doc(hidden)]
+    unsafe fn ___i_have_read_the_documetation_and_verified_that_everything_is_correct();
 }
 
 /// Marker trait used to mark Places where the value cannot be moved out of. Example:
@@ -106,6 +127,8 @@ unsafe impl<T> PartialInitPlace for MaybeUninit<T> {
     unsafe fn ___as_mut_ptr(&mut self, _proof: &impl FnOnce(&Self::Raw)) -> *mut Self::Raw {
         self.as_mut_ptr()
     }
+
+    unsafe fn ___i_have_read_the_documetation_and_verified_that_everything_is_correct() {}
 }
 
 #[cfg(feature = "std")]
@@ -124,6 +147,8 @@ unsafe impl<T> PartialInitPlace for Box<MaybeUninit<T>> {
     unsafe fn ___as_mut_ptr(&mut self, _proof: &impl FnOnce(&Self::Raw)) -> *mut Self::Raw {
         MaybeUninit::as_mut_ptr(&mut **self)
     }
+
+    unsafe fn ___i_have_read_the_documetation_and_verified_that_everything_is_correct() {}
 }
 
 unsafe impl<P, T> PartialInitPlace for Pin<P>
@@ -147,6 +172,8 @@ where
     unsafe fn ___as_mut_ptr(&mut self, _proof: &impl FnOnce(&Self::Raw)) -> *mut Self::Raw {
         unsafe { Pin::get_unchecked_mut(self.as_mut()).___as_mut_ptr(_proof) }
     }
+
+    unsafe fn ___i_have_read_the_documetation_and_verified_that_everything_is_correct() {}
 }
 
 unsafe impl<P, T> PinnedPlace for Pin<P>
@@ -255,6 +282,8 @@ unsafe impl<T> PartialInitPlace for StaticInit<T> {
     unsafe fn ___as_mut_ptr(&mut self, _proof: &impl FnOnce(&Self::Raw)) -> *mut Self::Raw {
         self.inner.as_mut_ptr()
     }
+
+    unsafe fn ___i_have_read_the_documetation_and_verified_that_everything_is_correct() {}
 }
 
 /// DO NOT IMPLEMENT MANUALLY, use the `pin_data!` macro.
