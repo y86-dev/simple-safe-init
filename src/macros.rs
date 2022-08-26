@@ -302,12 +302,12 @@ macro_rules! pin_data {
     };
     (@@make_fn(($vis:vis) pin $field:ident : $type:ty)) => {
         $vis unsafe fn $field<'a, T, P: $crate::place::PinnedPlace, G>(ptr: *mut T, _place: Option<&P>, guard: G) -> $crate::PinInitMe<'a, T, G> {
-            unsafe { $crate::PinInitMe::___new(ptr, guard) }
+            unsafe { <$crate::PinInitMe<'a, T, G> as $crate::InitPointer<'a, T, G>>::___new(ptr, guard) }
         }
     };
     (@@make_fn(($vis:vis) $field:ident : $type:ty)) => {
         $vis unsafe fn $field<'a, T,P: $crate::place::PartialInitPlace, G>(ptr: *mut T, _place: Option<&P>, guard: G) -> $crate::InitMe<'a, T, G> {
-            unsafe { $crate::InitMe::___new(ptr, guard) }
+            unsafe { <$crate::InitMe<'a, T, G> as $crate::InitPointer<'a, T, G>>::___new(ptr, guard) }
         }
     };
 }
