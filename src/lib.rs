@@ -782,24 +782,25 @@ impl<G> InitProof<(), G> {
     /// pin_data! {
     ///     #[derive(Debug)]
     ///     struct Count {
+    ///         #pin
     ///         inner: usize,
+    ///         #pin
     ///         _pin: PhantomPinned,
     ///     }
     /// }
     ///
-    /// fn init_count<G>(mut this: PinInitMe<'_, Count, G>) -> InitProof<*mut Count, G> {
+    /// fn init_count<G>(mut this: PinInitMe<'_, usize, G>) -> InitProof<*mut usize, G> {
     ///     let ptr = this.as_mut_ptr();
-    ///     let proof = init! { this => Count {
-    ///         ._pin = PhantomPinned;
-    ///         .inner = 42;
-    ///     }};
+    ///     let proof = this.write(42);
+    ///     // we want to return the pointer at the same time
     ///     proof.ret(ptr)
     /// }
     ///
-    /// let count = Box::new(MaybeUninit::uninit());
+    /// let count = Box::pin(MaybeUninit::uninit());
     /// let count = init! { count => Count {
     ///     ._pin = PhantomPinned;
-    ///     InitMe::write(.inner, 42);
+    ///     ~let addr = init_count(.inner);
+    ///     println!("{addr:p}");
     /// }};
     /// println!("{count:?}");
     /// ```
