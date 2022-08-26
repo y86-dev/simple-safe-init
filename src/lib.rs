@@ -245,9 +245,10 @@
 //! let mut my_struct = init! { @Pin<Box<MaybeUninit<MyPinnedStruct>>> => MyPinnedStruct {
 //!     .msg = "Hello World".to_owned();
 //!     ._p = PhantomPinned;
-//! }};
+//! }}.unwrap();
 //! my_struct.as_mut().print_info();
 //! ```
+//! The return type then also requires you to handle any allocation errors that could occur.
 //!
 //! # Advanced Topics
 //! ## Custom syntax list
@@ -423,14 +424,14 @@ impl<'a, T: ?Sized, G> InitMe<'a, T, G> {
     /// # Examples
     ///
     /// ```rust
-    /// use core::mem::MaybeUninit;
+    /// use core::{ptr::addr_of_mut, mem::MaybeUninit};
     /// use simple_safe_init::*;
     /// #[derive(Debug)]
     /// struct Count {
     ///     count: usize,
     /// }
     ///
-    /// fn init_count<G>(this: InitMe<'_, Count, G>) -> InitProof<(), G> {
+    /// fn init_count<G>(mut this: InitMe<'_, Count, G>) -> InitProof<(), G> {
     ///     // SAFETY: We write to uninitialized memory using a raw pointer that is valid
     ///     unsafe { addr_of_mut!((*this.as_mut_ptr()).count).write(42); }
     ///     // SAFETY: We initialized all fields before
@@ -501,14 +502,14 @@ impl<'a, T: ?Sized, G> InitMe<'a, T, G> {
     ///
     /// # Examples
     /// ```rust
-    /// use core::mem::MaybeUninit;
+    /// use core::{ptr::addr_of_mut, mem::MaybeUninit};
     /// use simple_safe_init::*;
     /// #[derive(Debug)]
     /// struct Count {
     ///     count: usize,
     /// }
     ///
-    /// fn init_count<G>(this: InitMe<'_, Count, G>) -> InitProof<(), G> {
+    /// fn init_count<G>(mut this: InitMe<'_, Count, G>) -> InitProof<(), G> {
     ///     // SAFETY: We write to uninitialized memory using a raw pointer that is valid
     ///     unsafe { addr_of_mut!((*this.as_mut_ptr()).count).write(42); }
     ///     // SAFETY: We initialized all fields before
@@ -533,22 +534,22 @@ unsafe impl<'a, T: ?Sized, G> PartialInitPlace for InitMe<'a, T, G> {
         Self: 'b
     ;
 
-    unsafe fn ___init_me<GG>(&mut self, _guard: GG) -> Self::InitMe<'_, GG> {
+    unsafe fn ___init_me<GG>(this: &mut Self, _guard: GG) -> Self::InitMe<'_, GG> {
         InitMe {
-            ptr: self.ptr,
+            ptr: this.ptr,
             _phantom: PhantomData,
         }
     }
 
-    unsafe fn ___init(self) -> Self::Init {
+    unsafe fn ___init(_this: Self) -> Self::Init {
         InitProof {
             value: (),
             _phantom: PhantomData,
         }
     }
 
-    unsafe fn ___as_mut_ptr(&mut self, _proof: &impl FnOnce(&Self::Raw)) -> *mut Self::Raw {
-        self.ptr
+    unsafe fn ___as_mut_ptr(this: &mut Self, _proof: &impl FnOnce(&Self::Raw)) -> *mut Self::Raw {
+        this.ptr
     }
 
     unsafe fn ___i_have_read_the_documetation_and_verified_that_everything_is_correct() {}
@@ -599,7 +600,7 @@ impl<'a, T: ?Sized, G> PinInitMe<'a, T, G> {
     /// # Examples
     ///
     /// ```rust
-    /// use core::{marker::PhantomData, mem::MaybeUninit};
+    /// use core::{marker::PhantomPinned, mem::MaybeUninit, ptr::addr_of_mut};
     /// use simple_safe_init::*;
     /// #[derive(Debug)]
     /// struct Count {
@@ -607,7 +608,7 @@ impl<'a, T: ?Sized, G> PinInitMe<'a, T, G> {
     ///     _pin: PhantomPinned,
     /// }
     ///
-    /// fn init_count<G>(this: PinInitMe<'_, Count, G>) -> InitProof<(), G> {
+    /// fn init_count<G>(mut this: PinInitMe<'_, Count, G>) -> InitProof<(), G> {
     ///     // SAFETY: We write to uninitialized memory using a raw pointer that is valid
     ///     unsafe { addr_of_mut!((*this.as_mut_ptr()).count).write(42); }
     ///     // SAFETY: We write to uninitialized memory using a raw pointer that is valid
@@ -633,7 +634,7 @@ impl<'a, T: ?Sized, G> PinInitMe<'a, T, G> {
     ///
     /// # Examples
     /// ```rust
-    /// use core::{marker::PhantomData, mem::MaybeUninit};
+    /// use core::{marker::PhantomPinned, mem::MaybeUninit};
     /// use simple_safe_init::*;
     ///
     /// pin_data! {
@@ -683,7 +684,7 @@ impl<'a, T: ?Sized, G> PinInitMe<'a, T, G> {
     ///
     /// # Examples
     /// ```rust
-    /// use core::{marker::PhantomPinned, mem::MaybeUninit};
+    /// use core::{marker::PhantomPinned, mem::MaybeUninit, ptr::addr_of_mut};
     /// use simple_safe_init::*;
     /// #[derive(Debug)]
     /// struct Count {
@@ -691,7 +692,7 @@ impl<'a, T: ?Sized, G> PinInitMe<'a, T, G> {
     ///     _pin: PhantomPinned,
     /// }
     ///
-    /// fn init_count<G>(this: PinInitMe<'_, Count, G>) -> InitProof<(), G> {
+    /// fn init_count<G>(mut this: PinInitMe<'_, Count, G>) -> InitProof<(), G> {
     ///     // SAFETY: We write to uninitialized memory using a raw pointer that is valid
     ///     unsafe { addr_of_mut!((*this.as_mut_ptr()).count).write(42); }
     ///     // SAFETY: We write to uninitialized memory using a raw pointer that is valid
@@ -705,7 +706,7 @@ impl<'a, T: ?Sized, G> PinInitMe<'a, T, G> {
     /// println!("{count:?}");
     /// ```
     pub fn as_mut_ptr(&mut self) -> *mut T {
-        unsafe { self.___as_mut_ptr(&|_| {}) }
+        unsafe { Self::___as_mut_ptr(self, &|_| {}) }
     }
 }
 
@@ -718,22 +719,22 @@ unsafe impl<'a, T: ?Sized, G> PartialInitPlace for PinInitMe<'a, T, G> {
         Self: 'b
     ;
 
-    unsafe fn ___init_me<GG>(&mut self, _guard: GG) -> Self::InitMe<'_, GG> {
+    unsafe fn ___init_me<GG>(this: &mut Self, _guard: GG) -> Self::InitMe<'_, GG> {
         PinInitMe {
-            ptr: self.ptr,
+            ptr: this.ptr,
             _phantom: PhantomData,
         }
     }
 
-    unsafe fn ___init(self) -> Self::Init {
+    unsafe fn ___init(_this: Self) -> Self::Init {
         InitProof {
             value: (),
             _phantom: PhantomData,
         }
     }
 
-    unsafe fn ___as_mut_ptr(&mut self, _proof: &impl FnOnce(&Self::Raw)) -> *mut Self::Raw {
-        self.ptr
+    unsafe fn ___as_mut_ptr(this: &mut Self, _proof: &impl FnOnce(&Self::Raw)) -> *mut Self::Raw {
+        this.ptr
     }
 
     unsafe fn ___i_have_read_the_documetation_and_verified_that_everything_is_correct() {}
@@ -776,20 +777,23 @@ impl<G> InitProof<(), G> {
     ///
     /// # Examples
     /// ```rust
-    /// use core::{marker::PhantomData, mem::MaybeUninit};
+    /// use core::{marker::PhantomPinned, mem::MaybeUninit};
     /// use simple_safe_init::*;
-    /// #[derive(Debug)]
-    /// struct Count {
-    ///     inner: usize,
-    ///     _pin: PhantomPinned,
+    /// pin_data! {
+    ///     #[derive(Debug)]
+    ///     struct Count {
+    ///         inner: usize,
+    ///         _pin: PhantomPinned,
+    ///     }
     /// }
     ///
-    /// fn init_count<G>(this: PinInitMe<'_, Count, G>) -> InitProof<*mut T, G> {
+    /// fn init_count<G>(mut this: PinInitMe<'_, Count, G>) -> InitProof<*mut Count, G> {
     ///     let ptr = this.as_mut_ptr();
-    ///     init! { this => Self {
+    ///     let proof = init! { this => Count {
     ///         ._pin = PhantomPinned;
     ///         .inner = 42;
-    ///     }}
+    ///     }};
+    ///     proof.ret(ptr)
     /// }
     ///
     /// let count = Box::new(MaybeUninit::uninit());

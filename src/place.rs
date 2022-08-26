@@ -47,8 +47,8 @@ pub unsafe trait PartialInitPlace {
     ///
     /// This function should not be implemented manually!
     #[doc(hidden)]
-    unsafe fn ___init_me<G>(&mut self, guard: G) -> Self::InitMe<'_, G> {
-        unsafe { InitPointer::___new(self.___as_mut_ptr(&|_| {}), guard) }
+    unsafe fn ___init_me<G>(this: &mut Self, guard: G) -> Self::InitMe<'_, G> {
+        unsafe { InitPointer::___new(Self::___as_mut_ptr(this, &|_| {}), guard) }
     }
 
     /// # **WARNING: MACRO ONLY FUNCTION**
@@ -78,7 +78,7 @@ pub unsafe trait PartialInitPlace {
     /// [`Box<MaybeUninit<T>>`]: [`core::mem::MaybeUninit`]
     /// [`MaybeUninit<T>`]: [`core::mem::MaybeUninit`]
     #[doc(hidden)]
-    unsafe fn ___init(self) -> Self::Init;
+    unsafe fn ___init(this: Self) -> Self::Init;
 
     /// # **WARNING: MACRO ONLY FUNCTION**
     ///
@@ -98,7 +98,7 @@ pub unsafe trait PartialInitPlace {
     /// - always return the same pointer,
     /// - no side effects allowed.
     #[doc(hidden)]
-    unsafe fn ___as_mut_ptr(&mut self, _proof: &impl FnOnce(&Self::Raw)) -> *mut Self::Raw;
+    unsafe fn ___as_mut_ptr(this: &mut Self, _proof: &impl FnOnce(&Self::Raw)) -> *mut Self::Raw;
 
     #[doc(hidden)]
     unsafe fn ___i_have_read_the_documetation_and_verified_that_everything_is_correct();
@@ -120,12 +120,12 @@ unsafe impl<T> PartialInitPlace for MaybeUninit<T> {
         Self: 'a
     ;
 
-    unsafe fn ___init(self) -> Self::Init {
-        unsafe { self.assume_init() }
+    unsafe fn ___init(this: Self) -> Self::Init {
+        unsafe { this.assume_init() }
     }
 
-    unsafe fn ___as_mut_ptr(&mut self, _proof: &impl FnOnce(&Self::Raw)) -> *mut Self::Raw {
-        self.as_mut_ptr()
+    unsafe fn ___as_mut_ptr(this: &mut Self, _proof: &impl FnOnce(&Self::Raw)) -> *mut Self::Raw {
+        this.as_mut_ptr()
     }
 
     unsafe fn ___i_have_read_the_documetation_and_verified_that_everything_is_correct() {}
@@ -140,12 +140,12 @@ unsafe impl<T> PartialInitPlace for Box<MaybeUninit<T>> {
     where
         Self: 'a
     ;
-    unsafe fn ___init(self) -> Self::Init {
-        unsafe { self.assume_init() }
+    unsafe fn ___init(this: Self) -> Self::Init {
+        unsafe { this.assume_init() }
     }
 
-    unsafe fn ___as_mut_ptr(&mut self, _proof: &impl FnOnce(&Self::Raw)) -> *mut Self::Raw {
-        MaybeUninit::as_mut_ptr(&mut **self)
+    unsafe fn ___as_mut_ptr(this: &mut Self, _proof: &impl FnOnce(&Self::Raw)) -> *mut Self::Raw {
+        MaybeUninit::as_mut_ptr(&mut **this)
     }
 
     unsafe fn ___i_have_read_the_documetation_and_verified_that_everything_is_correct() {}
@@ -154,7 +154,7 @@ unsafe impl<T> PartialInitPlace for Box<MaybeUninit<T>> {
 unsafe impl<P, T> PartialInitPlace for Pin<P>
 where
     P: PartialInitPlace + core::ops::DerefMut<Target = T>,
-    P::Init: core::ops::Deref,
+    P::Init: core::ops::Deref<Target = P::Raw>,
     T: PartialInitPlace<Raw = P::Raw>,
 {
     type Init = Pin<P::Init>;
@@ -164,13 +164,13 @@ where
     where
         Self: 'a
     ;
-    unsafe fn ___init(self) -> Self::Init {
+    unsafe fn ___init(this: Self) -> Self::Init {
         // TODO is this safe?
-        unsafe { Pin::new_unchecked(Pin::into_inner_unchecked(self).___init()) }
+        unsafe { Pin::new_unchecked(P::___init(Pin::into_inner_unchecked(this))) }
     }
 
-    unsafe fn ___as_mut_ptr(&mut self, _proof: &impl FnOnce(&Self::Raw)) -> *mut Self::Raw {
-        unsafe { Pin::get_unchecked_mut(self.as_mut()).___as_mut_ptr(_proof) }
+    unsafe fn ___as_mut_ptr(this: &mut Self, _proof: &impl FnOnce(&Self::Raw)) -> *mut Self::Raw {
+        unsafe { T::___as_mut_ptr(Pin::get_unchecked_mut(this.as_mut()), _proof) }
     }
 
     unsafe fn ___i_have_read_the_documetation_and_verified_that_everything_is_correct() {}
@@ -179,7 +179,7 @@ where
 unsafe impl<P, T> PinnedPlace for Pin<P>
 where
     P: PartialInitPlace + core::ops::DerefMut<Target = T>,
-    P::Init: core::ops::Deref,
+    P::Init: core::ops::Deref<Target = P::Raw>,
     T: PartialInitPlace<Raw = P::Raw>,
 {
 }
@@ -275,12 +275,12 @@ unsafe impl<T> PartialInitPlace for StaticInit<T> {
     type Raw = T;
     type InitMe<'a, G> = PinInitMe<'a, T, G> where Self: 'a;
 
-    unsafe fn ___init(self) -> Self::Init {
+    unsafe fn ___init(_this: Self) -> Self::Init {
         panic!("this function is not designed to be called!")
     }
 
-    unsafe fn ___as_mut_ptr(&mut self, _proof: &impl FnOnce(&Self::Raw)) -> *mut Self::Raw {
-        self.inner.as_mut_ptr()
+    unsafe fn ___as_mut_ptr(this: &mut Self, _proof: &impl FnOnce(&Self::Raw)) -> *mut Self::Raw {
+        this.inner.as_mut_ptr()
     }
 
     unsafe fn ___i_have_read_the_documetation_and_verified_that_everything_is_correct() {}
