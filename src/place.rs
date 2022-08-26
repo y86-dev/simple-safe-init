@@ -10,6 +10,17 @@ use crate::{InitMe, InitPointer, PinInitMe};
 use alloc::boxed::Box;
 use core::{mem::MaybeUninit, pin::Pin};
 
+macro_rules! cfg_std {
+    ($($stuff:item)*) => {
+        $(
+            // TODO change to docsr
+            #[cfg_attr(feature = "docsrs", doc(cfg(feature = "std")))]
+            #[cfg(feature = "std")]
+            $stuff
+        )*
+    }
+}
+
 /// Central trait to facilitate initialization. Every partially init-able place should implement this type.
 ///
 /// If you need to implement this type, pay close attention to the comments on the methods of this
@@ -131,24 +142,25 @@ unsafe impl<T> PartialInitPlace for MaybeUninit<T> {
     unsafe fn ___i_have_read_the_documetation_and_verified_that_everything_is_correct() {}
 }
 
-#[cfg(feature = "std")]
-unsafe impl<T> PartialInitPlace for Box<MaybeUninit<T>> {
-    type Init = Box<T>;
-    type Raw = T;
-    type InitMe<'a, G>
-    = InitMe<'a, T, G>
-    where
-        Self: 'a
-    ;
-    unsafe fn ___init(this: Self) -> Self::Init {
-        unsafe { this.assume_init() }
-    }
+cfg_std! {
+    unsafe impl<T> PartialInitPlace for Box<MaybeUninit<T>> {
+        type Init = Box<T>;
+        type Raw = T;
+        type InitMe<'a, G>
+        = InitMe<'a, T, G>
+        where
+            Self: 'a
+        ;
+        unsafe fn ___init(this: Self) -> Self::Init {
+            unsafe { this.assume_init() }
+        }
 
-    unsafe fn ___as_mut_ptr(this: &mut Self, _proof: &impl FnOnce(&Self::Raw)) -> *mut Self::Raw {
-        MaybeUninit::as_mut_ptr(&mut **this)
-    }
+        unsafe fn ___as_mut_ptr(this: &mut Self, _proof: &impl FnOnce(&Self::Raw)) -> *mut Self::Raw {
+            MaybeUninit::as_mut_ptr(&mut **this)
+        }
 
-    unsafe fn ___i_have_read_the_documetation_and_verified_that_everything_is_correct() {}
+        unsafe fn ___i_have_read_the_documetation_and_verified_that_everything_is_correct() {}
+    }
 }
 
 unsafe impl<P, T> PartialInitPlace for Pin<P>
@@ -212,24 +224,26 @@ where
     }
 }
 
-#[derive(Debug)]
-pub enum BoxAllocErr<E> {
-    Nested(E),
-    BoxAlloc,
-}
+cfg_std! {
+    /// An allocation error occuring when trying to allocate [`Box<A>`] where `A:` [`AllocablePlace`].
+    #[derive(Debug)]
+    pub enum BoxAllocErr<E> {
+        Nested(E),
+        BoxAlloc,
+    }
 
-#[cfg(feature = "std")]
-impl<A: AllocablePlace> AllocablePlace for Box<A>
-where
-    Box<A>: PartialInitPlace,
-{
-    type Error = BoxAllocErr<A::Error>;
+    impl<A: AllocablePlace> AllocablePlace for Box<A>
+    where
+        Box<A>: PartialInitPlace,
+    {
+        type Error = BoxAllocErr<A::Error>;
 
-    fn allocate() -> Result<Self, Self::Error> {
-        Ok(
-            Box::try_new(A::allocate().map_err(|e| BoxAllocErr::Nested(e))?)
-                .map_err(|_| BoxAllocErr::BoxAlloc)?,
-        )
+        fn allocate() -> Result<Self, Self::Error> {
+            Ok(
+                Box::try_new(A::allocate().map_err(|e| BoxAllocErr::Nested(e))?)
+                    .map_err(|_| BoxAllocErr::BoxAlloc)?,
+            )
+        }
     }
 }
 

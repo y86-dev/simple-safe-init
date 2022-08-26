@@ -8,5 +8,6 @@ edition = "2021"
 [dependencies]
 
 [features]
-default = ["std"]
+default = ["std", "docsrs"]
 std = []
+docsrs = []

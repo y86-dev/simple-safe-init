@@ -332,6 +332,7 @@
 #![cfg_attr(feature = "std", feature(new_uninit))]
 #![cfg_attr(feature = "std", feature(allocator_api))]
 #![feature(generic_associated_types, never_type)]
+#![cfg_attr(feature = "docsrs", feature(doc_cfg))]
 #![deny(unsafe_op_in_unsafe_fn)]
 #[cfg(feature = "std")]
 extern crate alloc;
