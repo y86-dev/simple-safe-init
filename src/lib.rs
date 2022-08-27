@@ -1,6 +1,6 @@
 //! Library to safely initialize pinned structs.
 //!
-//! This library uses a delcarative macro to make initializing structs safe and more ergonomic.
+//! This library uses a declarative macro to make initializing structs safe and more ergonomic.
 //!
 //! Readers are expected to know what [pinning](https://doc.rust-lang.org/std/pin/index.html) is.
 //!
@@ -44,7 +44,7 @@
 //! #     }
 //! # }
 //! let my_struct = Box::pin(MaybeUninit::uninit());
-//! // [`init!`] consumes its input, so we need to retrive the pointer here
+//! // [`init!`] consumes its input, so we need to retrieve the pointer here
 //! let addr = my_struct.as_ptr();
 //! let mut my_struct = init! { my_struct => SelfReferentialStruct {
 //!     .msg = "Hello World".to_owned();
@@ -165,9 +165,9 @@
 //!     NamedCounter::init(.second, "Second".to_owned());
 //! }};
 //! ```
-//! `pin_data!` informs the [`init!`] macro what fields are structually pinned by scanning for a
+//! `pin_data!` informs the [`init!`] macro what fields are structurally pinned by scanning for a
 //! `#pin` before any attributes (remember that doc comments are also attributes).
-//! The [`init!`] macro creates an init-pointer from the given fields. Depending on the prescense of
+//! The [`init!`] macro creates an init-pointer from the given fields. Depending on the presence of
 //! `#pin` it creates [`InitMe`] or [`PinInitMe`].
 //!
 //! ## Macro initialization
@@ -254,13 +254,13 @@
 //! ## Custom syntax list
 //! There are two main ways of initializing with [`init!`]:
 //! ### Manual initialization
-//! This way you need to have access to all sturct fields and you will need to provide an
-//! initializer handling every field of the struct induvidually.
+//! This way you need to have access to all struct fields and you will need to provide an
+//! initializer handling every field of the struct individually.
 //!
 //! The initializer allows the following custom syntax while initializing the given `field`:
 //! - `.$field = $expr;` where `expr` is any rust expression,
 //! - `$func(.$field, $($param),*);` where `func` is an init function with the correct type for
-//! `field` (pay attention to the right pin status) and `param` are arbitary rust experssions,
+//! `field` (pay attention to the right pin status) and `param` are arbitrary rust expressions,
 //! - `~let $pat = $func(.$field, $($param),*);` where `func` and `param` are the same as before
 //! and `pat` is any rust pattern,
 //! - `unsafe { $func(.$field, $($param),*) };` where `func` and `param` as before, except `func`
@@ -268,7 +268,7 @@
 //! - `~let $pat = unsafe { $func(.$field, $($param),*) };` where `func` and `param` are the same as before
 //! and `pat` is any rust pattern,
 //! - `$func(.$field, $($param),*).await;` where `func` is an async init function with the correct type for
-//! `field` (pay attention to the right pin status) and `param` are arbitary rust experssions,
+//! `field` (pay attention to the right pin status) and `param` are arbitrary rust expressions,
 //! - `~let $pat = $func(.$field, $($param),*).await;` where `func` and `param` are the same as before
 //! and `pat` is any rust pattern,
 //!
@@ -297,7 +297,7 @@
 //! provided by this library always follow this invariant.
 //!
 //! ## How does [`init!`] work?
-//! This section is intended for readers trying to understand the inner workings of this libarary.
+//! This section is intended for readers trying to understand the inner workings of this library.
 //! If you only intend to use the library you do not need to read this section.
 //!
 //! The [`init!`] macro uses a combination of `unsafe`, special traits and a struct initializer to
@@ -322,7 +322,7 @@
 //!
 //! When a user writes `$func(.$field);`, then a raw pointer is again created and used to create a
 //! [`InitMe`] or [`PinInitMe`]. To do this a guard parameter is also required. It is currently
-//! implemented as a local type which is shadowed to prevent accidental/malicous use.
+//! implemented as a local type which is shadowed to prevent accidental/malicious use.
 //!
 //! [`MaybeUninit`]: [`core::mem::MaybeUninit`]
 //! [`MaybeUninit::write`]: [`core::mem::MaybeUninit::write`]
@@ -375,7 +375,7 @@ pub trait InitPointer<'a, T: ?Sized, G>: sealed::Sealed + Pointer {
     /// The caller guarantees:
     /// - this function is only called from macros of this library,
     /// - `ptr` is aligned and pointing to allocated memory,
-    /// - `guard` is not accesible by unauthorized code.
+    /// - `guard` is not accessible by unauthorized code.
     #[doc(hidden)]
     unsafe fn ___new(ptr: *mut T, guard: G) -> Self;
 }

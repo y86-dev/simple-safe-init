@@ -279,9 +279,9 @@ macro_rules! init {
 /// This is somewhat similar in purpose as
 /// [pin-project-lite](https://crates.io/crates/pin-project-lite).
 /// Place this macro around a struct definition and then `#pin` in front of the attributes of each
-/// field you want to have structually pinned.
+/// field you want to have structurally pinned.
 ///
-/// TODO: fuse with it or reimplement it?
+/// TODO: fuse with it or re-implement it?
 #[macro_export]
 macro_rules! pin_data {
     (

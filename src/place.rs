@@ -13,7 +13,7 @@ use core::{mem::MaybeUninit, pin::Pin};
 macro_rules! cfg_std {
     ($($stuff:item)*) => {
         $(
-            // TODO change to docsr
+            // TODO change to docsrs
             #[cfg_attr(feature = "docsrs", doc(cfg(feature = "std")))]
             #[cfg(feature = "std")]
             $stuff
@@ -190,7 +190,7 @@ where
         Self: 'a
     ;
     unsafe fn ___init(this: Self) -> Self::Init {
-        // SAFETY: P::___init will not change the address of the pointer, so we can repin the
+        // SAFETY: P::___init will not change the address of the pointer, so we can re-pin the
         // returned smart pointer (it is a pointer, because it implements Deref)
         unsafe { Pin::new_unchecked(P::___init(Pin::into_inner_unchecked(this))) }
     }
@@ -220,7 +220,7 @@ pub trait AllocablePlace: Sized + PartialInitPlace {
     ///
     /// # Errors
     ///
-    /// This might fail when not enough memory of the specifed kind is available.
+    /// This might fail when not enough memory of the specified kind is available.
     /// If it cannot fail, `Self::Error` should be `!` (the [never type](https://doc.rust-lang.org/reference/types/never.html)).
     fn allocate() -> Result<Self, Self::Error>;
 }
@@ -245,7 +245,7 @@ where
 }
 
 cfg_std! {
-    /// An allocation error occuring when trying to allocate [`Box<A>`] where `A:` [`AllocablePlace`].
+    /// An allocation error occurring when trying to allocate [`Box<A>`] where `A:` [`AllocablePlace`].
     #[derive(Debug)]
     pub enum BoxAllocErr<E> {
         Nested(E),
