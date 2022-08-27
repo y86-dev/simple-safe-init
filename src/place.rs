@@ -59,6 +59,7 @@ pub unsafe trait PartialInitPlace {
     /// This function should not be implemented manually!
     #[doc(hidden)]
     unsafe fn ___init_me<G>(this: &mut Self, guard: G) -> Self::InitMe<'_, G> {
+        // SAFETY: macro only function
         unsafe { InitPointer::___new(Self::___as_mut_ptr(this, &|_| {}), guard) }
     }
 
@@ -82,6 +83,9 @@ pub unsafe trait PartialInitPlace {
     /// translation in this function. For example: [`Box<T>`] and [`Box<MaybeUninit<T>>`] **are
     /// not** layout compatible, even though [`MaybeUninit<T>`] and `T` are! For more information
     /// on this, view the [UCG](TODO) (unsafe code guidelines).
+    ///
+    /// If `Self` is a pointer type, then this function is not allowed to change the memory location
+    /// of the initialized memory.
     ///
     /// No side effects allowed.
     ///
@@ -132,6 +136,7 @@ unsafe impl<T> PartialInitPlace for MaybeUninit<T> {
     ;
 
     unsafe fn ___init(this: Self) -> Self::Init {
+        // SAFETY: `T` has been initialized.
         unsafe { this.assume_init() }
     }
 
@@ -152,6 +157,7 @@ cfg_std! {
             Self: 'a
         ;
         unsafe fn ___init(this: Self) -> Self::Init {
+            // SAFETY: `T` has been initialized
             unsafe { this.assume_init() }
         }
 
@@ -177,11 +183,13 @@ where
         Self: 'a
     ;
     unsafe fn ___init(this: Self) -> Self::Init {
-        // TODO is this safe?
+        // SAFETY: P::___init will not change the address of the pointer, so we can repin the
+        // returned smart pointer (it is a pointer, because it implements Deref)
         unsafe { Pin::new_unchecked(P::___init(Pin::into_inner_unchecked(this))) }
     }
 
     unsafe fn ___as_mut_ptr(this: &mut Self, _proof: &impl FnOnce(&Self::Raw)) -> *mut Self::Raw {
+        // SAFETY: macro never moves out of the pointer returned
         unsafe { T::___as_mut_ptr(Pin::get_unchecked_mut(this.as_mut()), _proof) }
     }
 
@@ -201,7 +209,12 @@ where
 pub trait AllocablePlace: Sized + PartialInitPlace {
     type Error;
 
-    /// Allocate a place of this kind. This might fail.
+    /// Allocate a place of this kind.
+    ///
+    /// # Errors
+    ///
+    /// This might fail when not enough memory of the specifed kind is available.
+    /// If it cannot fail, `Self::Error` should be `!` (the [never type](https://doc.rust-lang.org/reference/types/never.html)).
     fn allocate() -> Result<Self, Self::Error>;
 }
 

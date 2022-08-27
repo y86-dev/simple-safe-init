@@ -660,6 +660,7 @@ impl<'a, T: ?Sized, G> PinInitMe<'a, T, G> {
         T: Sized,
     {
         unsafe {
+            // SAFETY: the pointer is always valid.
             self.ptr.write(val);
         }
         InitProof {
@@ -707,7 +708,7 @@ impl<'a, T: ?Sized, G> PinInitMe<'a, T, G> {
     /// println!("{count:?}");
     /// ```
     pub fn as_mut_ptr(&mut self) -> *mut T {
-        unsafe { Self::___as_mut_ptr(self, &|_| {}) }
+        self.ptr
     }
 }
 

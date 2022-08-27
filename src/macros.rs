@@ -151,7 +151,7 @@ macro_rules! init {
         }
         let $field = {
             unsafe {
-                // we initialized the memory above, so we can now create a reference
+                // SAFETY: we initialized the memory above, so we can now create a reference
                 &mut *::core::ptr::addr_of_mut!((*$crate::place::PartialInitPlace::___as_mut_ptr(&mut $var, &|_: &$name $(<$($generic),*>)?| {})).$field)
             }
         };
@@ -173,7 +173,10 @@ macro_rules! init {
         $(~let $binding:pat = )?unsafe { $func:ident $(:: $(<$($args:ty),*$(,)?>::)? $path:ident)*(.$field:ident $($rest:tt)*) };
         $($tail:tt)*
     ) => {
-        $crate::init!(@@init_call($var, $name $(<$($generic),*>)?, $field, field_place, (unsafe { $func $(:: $(<$($args),*>::)? $path)*(field_place $($rest)*) }), $($binding)?));
+        $crate::init!(@@init_call($var, $name $(<$($generic),*>)?, $field, field_place, (unsafe {
+            // SAFETY: macro-caller guarantees this is sound
+            $func $(:: $(<$($args),*>::)? $path)*(field_place $($rest)*) }
+        ), $($binding)?));
         $crate::init!(@@inner($var $pin ($($inner)* $field: $crate::conjure(),) $name $(<$($generic),*>)?) $($tail)*);
     };
     // a macro call initializing a single field
@@ -213,6 +216,7 @@ macro_rules! init {
             var = None;
             // get the correct pin projection (handled by the ___PinData type)
             let $field_place = unsafe {
+                // SAFETY: calling macro-only functions
                 <$name $(<$($generic),*>)? as $crate::place::___PinData>::___PinData::$field(
                     ::core::ptr::addr_of_mut!((*$crate::place::PartialInitPlace::___as_mut_ptr(&mut $var, &|_: &$name $(<$($generic),*>)?| {})).$field),
                     var,
@@ -236,6 +240,7 @@ macro_rules! init {
         // create a mutable reference to the object, it can now be used, because it was initialized.
         let $field = {
             unsafe {
+                // SAFETY: calling macro-only functions
                 &mut *::core::ptr::addr_of_mut!((*$crate::place::PartialInitPlace::___as_mut_ptr(&mut $var, &|_: &$name $(<$($generic),*>)?| {})).$field)
             }
         };
@@ -299,6 +304,7 @@ macro_rules! pin_data {
         }
 
         const _: () = {
+            #[doc(hidden)]
             $vis struct ___ThePinData;
 
             impl ___ThePinData {
@@ -314,12 +320,18 @@ macro_rules! pin_data {
     };
     (@@make_fn(($vis:vis) pin $field:ident : $typ:ty)) => {
         $vis unsafe fn $field<'a, T, P: $crate::place::PinnedPlace, G>(ptr: *mut T, _place: Option<&P>, guard: G) -> $crate::PinInitMe<'a, T, G> {
-            unsafe { <$crate::PinInitMe<'a, T, G> as $crate::InitPointer<'a, T, G>>::___new(ptr, guard) }
+            unsafe {
+                // SAFETY: pointer is valid.
+                <$crate::PinInitMe<'a, T, G> as $crate::InitPointer<'a, T, G>>::___new(ptr, guard)
+            }
         }
     };
     (@@make_fn(($vis:vis) $field:ident : $typ:ty)) => {
         $vis unsafe fn $field<'a, T,P: $crate::place::PartialInitPlace, G>(ptr: *mut T, _place: Option<&P>, guard: G) -> $crate::InitMe<'a, T, G> {
-            unsafe { <$crate::InitMe<'a, T, G> as $crate::InitPointer<'a, T, G>>::___new(ptr, guard) }
+            unsafe {
+                // SAFETY: pointer is valid.
+                <$crate::InitMe<'a, T, G> as $crate::InitPointer<'a, T, G>>::___new(ptr, guard)
+            }
         }
     };
 }
