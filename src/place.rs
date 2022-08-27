@@ -29,8 +29,15 @@ macro_rules! cfg_std {
 ///
 /// # Safety
 ///
-/// This trait requires that partially initialized values of type `Raw` can be stored and initialized
-/// values of type `Raw` can be stored by `Init`.
+/// This trait requires that partially initialized values of type `Raw` can be stored in
+/// `Self` (mostly in [`MaybeUninit<T>`]). And initialized values of type `Raw` can be stored by `Init`.
+///
+/// It only makes sense to implement this type for
+/// - direct memory locations (such as [`MaybeUninit<T>`]),
+/// - smart pointers with unique access to the pointee.
+///
+/// When implementing this type you need to be careful, as a faulty implementation can lead to UB
+/// at a later point in time.
 pub unsafe trait PartialInitPlace {
     /// This is the type `Self` will become, when everything is fully initialized.
     type Init;
@@ -82,7 +89,7 @@ pub unsafe trait PartialInitPlace {
     /// Some smart pointers have layouts that depend upon the type parameters, take care of the
     /// translation in this function. For example: [`Box<T>`] and [`Box<MaybeUninit<T>>`] **are
     /// not** layout compatible, even though [`MaybeUninit<T>`] and `T` are! For more information
-    /// on this, view the [UCG](TODO) (unsafe code guidelines).
+    /// on this, view [this UCG issue](https://github.com/rust-lang/unsafe-code-guidelines/issues/329) (unsafe code guidelines).
     ///
     /// If `Self` is a pointer type, then this function is not allowed to change the memory location
     /// of the initialized memory.
