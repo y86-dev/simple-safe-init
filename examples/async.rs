@@ -58,7 +58,7 @@ impl core::future::Future for Yield {
     }
 }
 
-async fn init_num<N: From<u8>, G>(this: PinInitMe<'_, N, G>) -> InitProof<(), G> {
+async fn init_num<N: From<u8>, G: Guard>(this: PinInitMe<'_, N, G>) -> InitProof<(), G> {
     Yield(false).await;
     this.write(3.into())
 }

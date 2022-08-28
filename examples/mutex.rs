@@ -15,7 +15,7 @@ unsafe fn __init_mutex(mutex: *mut mutex) {
     }
 }
 
-fn init_raw_mutex<G>(mut mutex: PinInitMe<'_, mutex, G>) -> InitProof<(), G> {
+fn init_raw_mutex<G: Guard>(mut mutex: PinInitMe<'_, mutex, G>) -> InitProof<(), G> {
     unsafe {
         __init_mutex(mutex.as_mut_ptr());
         mutex.assume_init()
@@ -53,7 +53,7 @@ pin_data! {
     }
 }
 
-fn init_mutex<T, G>(mutex: PinInitMe<'_, Mutex<T>, G>, value: T) -> InitProof<(), G> {
+fn init_mutex<T, G: Guard>(mutex: PinInitMe<'_, Mutex<T>, G>, value: T) -> InitProof<(), G> {
     init! { mutex => Mutex<T> {
         init_raw_mutex(.raw);
         .val = UnsafeCell::new(value);

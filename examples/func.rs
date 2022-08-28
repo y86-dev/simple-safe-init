@@ -9,7 +9,7 @@ pin_data! {
     }
 }
 
-fn init_usize<G>(val: InitMe<'_, usize, G>) -> InitProof<(), G> {
+fn init_usize<G: Guard>(val: InitMe<'_, usize, G>) -> InitProof<(), G> {
     val.write(5)
 }
 
@@ -18,7 +18,7 @@ pub mod nested {
         use simple_safe_init::*;
         pub struct Bar<T>(T);
         impl<T> Bar<T> {
-            pub fn baz<G>(val: InitMe<'_, T, G>, v: T) -> InitProof<(), G> {
+            pub fn baz<G: Guard>(val: InitMe<'_, T, G>, v: T) -> InitProof<(), G> {
                 val.write(v)
             }
         }

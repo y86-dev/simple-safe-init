@@ -9,6 +9,7 @@ macro_rules! init_int {
 }
 
 pin_data! {
+    #[derive(Debug)]
     struct Foo {
         a: usize,
     }
@@ -19,4 +20,5 @@ fn main() {
     let foo = init! { foo => Foo {
         init_int!(.a);
     }};
+    println!("{foo:?}");
 }
