@@ -58,8 +58,8 @@
 //! of special statements with custom syntax. One of them is: `.$field = $expr;` it initializes the field
 //! with the given expression. See [here](#custom-syntax-list) for a complete list of the custom syntax.
 //!
-//! All of this without unsafe code and guarantees that you have not forgotten anything. A compile
-//! error is emitted, if
+//! All of this without writing unsafe code ourselves and guarantees that you have not forgotten
+//! anything. A compile error is emitted, if
 //! - a field is missing,
 //! - a field is initialized multiple times.
 //!
@@ -96,7 +96,7 @@
 //!         // of the library.
 //!         //
 //!         // you can have any number of additional arguments
-//!         pub fn init<G>(mut this: PinInitMe<'_, Self, G>, msg: String) -> InitProof<(), G> {
+//!         pub fn init<G: Guard>(mut this: PinInitMe<'_, Self, G>, msg: String) -> InitProof<(), G> {
 //!             // we still need the address for this example
 //!             let addr = this.as_mut_ptr() as usize;
 //!             // we still use the same syntax here!
@@ -138,7 +138,7 @@
 //! }
 //!
 //! impl NamedCounter {
-//!     pub fn init<G>(this: PinInitMe<'_, Self, G>, msg: String) -> InitProof<(), G> {
+//!     pub fn init<G: Guard>(this: PinInitMe<'_, Self, G>, msg: String) -> InitProof<(), G> {
 //!         init! { this => Self {
 //!             .msg = msg;
 //!             .count = 0;
@@ -353,8 +353,8 @@ mod sealed {
     use super::*;
     pub trait Sealed {}
 
-    impl<'a, T: ?Sized, G> Sealed for InitMe<'a, T, G> {}
-    impl<'a, T: ?Sized, G> Sealed for PinInitMe<'a, T, G> {}
+    impl<'a, T: ?Sized, G: Guard> Sealed for InitMe<'a, T, G> {}
+    impl<'a, T: ?Sized, G: Guard> Sealed for PinInitMe<'a, T, G> {}
 }
 
 /// A sealed trait used to enforce the correct function is called and no ambiguity arises when
@@ -363,20 +363,10 @@ mod sealed {
 /// The only types implementing this trait are:
 /// - [`InitMe`],
 /// - [`PinInitMe`].
-pub trait InitPointer<'a, T: ?Sized, G>: sealed::Sealed + Pointer {
-    /// # **WARNING: MACRO ONLY FUNCTION**
-    ///
-    /// This function is only designed to be called by the macros of this library.
-    /// Using it directly might run into **unexpected and undefined behavior!**
-    ///
-    /// I repeat: **DO NOT USE THIS FUNCTION!!**
-    ///
-    /// # Safety
-    /// The caller guarantees:
-    /// - this function is only called from macros of this library,
+pub trait InitPointer<'a, T: ?Sized, G: Guard>: sealed::Sealed + Pointer {
+    #[doc = include_str!("macro_only.md")]
     /// - `ptr` is aligned and pointing to allocated memory,
     /// - `guard` is not accessible by unauthorized code.
-    #[doc(hidden)]
     unsafe fn ___new(ptr: *mut T, guard: G) -> Self;
 }
 
@@ -389,20 +379,20 @@ pub trait InitPointer<'a, T: ?Sized, G>: sealed::Sealed + Pointer {
 /// returns a unique `InitProof<(), G>` that cannot be used to vouch for any other initialization
 /// except this one.
 /// See [here](#guard-parameter) for an explanation on this parameter.
-pub struct InitMe<'a, T: ?Sized, G> {
+pub struct InitMe<'a, T: ?Sized, G: Guard> {
     ptr: *mut T,
     // We need the correct variance, so we only accept the exact type for `G`. `T` and `'a` should
     // behave like `&'a mut T`.
     _phantom: PhantomData<(&'a mut T, fn(G) -> G)>,
 }
 
-impl<'a, T: ?Sized, G> Pointer for InitMe<'a, T, G> {
+impl<'a, T: ?Sized, G: Guard> Pointer for InitMe<'a, T, G> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{:p}", self.ptr)
     }
 }
 
-impl<'a, T: ?Sized, G> InitPointer<'a, T, G> for InitMe<'a, T, G> {
+impl<'a, T: ?Sized, G: Guard> InitPointer<'a, T, G> for InitMe<'a, T, G> {
     #[doc(hidden)]
     unsafe fn ___new(ptr: *mut T, _guard: G) -> Self {
         Self {
@@ -412,7 +402,7 @@ impl<'a, T: ?Sized, G> InitPointer<'a, T, G> for InitMe<'a, T, G> {
     }
 }
 
-impl<'a, T: ?Sized, G> InitMe<'a, T, G> {
+impl<'a, T: ?Sized, G: Guard> InitMe<'a, T, G> {
     /// Unsafely assume that the value is initialized.
     ///
     /// # Safety
@@ -432,7 +422,7 @@ impl<'a, T: ?Sized, G> InitMe<'a, T, G> {
     ///     count: usize,
     /// }
     ///
-    /// fn init_count<G>(mut this: InitMe<'_, Count, G>) -> InitProof<(), G> {
+    /// fn init_count<G: Guard>(mut this: InitMe<'_, Count, G>) -> InitProof<(), G> {
     ///     // SAFETY: We write to uninitialized memory using a raw pointer that is valid
     ///     unsafe { addr_of_mut!((*this.as_mut_ptr()).count).write(42); }
     ///     // SAFETY: We initialized all fields before
@@ -510,7 +500,7 @@ impl<'a, T: ?Sized, G> InitMe<'a, T, G> {
     ///     count: usize,
     /// }
     ///
-    /// fn init_count<G>(mut this: InitMe<'_, Count, G>) -> InitProof<(), G> {
+    /// fn init_count<G: Guard>(mut this: InitMe<'_, Count, G>) -> InitProof<(), G> {
     ///     // SAFETY: We write to uninitialized memory using a raw pointer that is valid
     ///     unsafe { addr_of_mut!((*this.as_mut_ptr()).count).write(42); }
     ///     // SAFETY: We initialized all fields before
@@ -526,16 +516,16 @@ impl<'a, T: ?Sized, G> InitMe<'a, T, G> {
     }
 }
 
-unsafe impl<'a, T: ?Sized, G> PartialInitPlace for InitMe<'a, T, G> {
+unsafe impl<'a, T: ?Sized, G: Guard> PartialInitPlace for InitMe<'a, T, G> {
     type Init = InitProof<(), G>;
     type Raw = T;
-    type InitMe<'b, GG>
+    type InitMe<'b, GG: Guard>
     = InitMe<'b, T, GG>
     where
         Self: 'b
     ;
 
-    unsafe fn ___init_me<GG>(this: &mut Self, _guard: GG) -> Self::InitMe<'_, GG> {
+    unsafe fn ___init_me<GG: Guard>(this: &mut Self, _guard: GG) -> Self::InitMe<'_, GG> {
         InitMe {
             ptr: this.ptr,
             _phantom: PhantomData,
@@ -565,20 +555,20 @@ unsafe impl<'a, T: ?Sized, G> PartialInitPlace for InitMe<'a, T, G> {
 /// returns a unique `InitProof<(), G>` that cannot be used to vouch for any other initialization
 /// except this one.
 /// See [here](#guard-parameter) for an explanation on this parameter.
-pub struct PinInitMe<'a, T: ?Sized, G> {
+pub struct PinInitMe<'a, T: ?Sized, G: Guard> {
     ptr: *mut T,
     // We need the correct variance, so we only accept the exact type for `G`. `T` and `'a` should
     // behave like `&'a mut T`.
     _phantom: PhantomData<(&'a mut T, fn(G) -> G)>,
 }
 
-impl<'a, T: ?Sized, G> Pointer for PinInitMe<'a, T, G> {
+impl<'a, T: ?Sized, G: Guard> Pointer for PinInitMe<'a, T, G> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{:p}", self.ptr)
     }
 }
 
-impl<'a, T: ?Sized, G> InitPointer<'a, T, G> for PinInitMe<'a, T, G> {
+impl<'a, T: ?Sized, G: Guard> InitPointer<'a, T, G> for PinInitMe<'a, T, G> {
     #[doc(hidden)]
     unsafe fn ___new(ptr: *mut T, _guard: G) -> Self {
         Self {
@@ -588,7 +578,7 @@ impl<'a, T: ?Sized, G> InitPointer<'a, T, G> for PinInitMe<'a, T, G> {
     }
 }
 
-impl<'a, T: ?Sized, G> PinInitMe<'a, T, G> {
+impl<'a, T: ?Sized, G: Guard> PinInitMe<'a, T, G> {
     /// Unsafely assume that the value is initialized.
     ///
     /// # Safety
@@ -609,7 +599,7 @@ impl<'a, T: ?Sized, G> PinInitMe<'a, T, G> {
     ///     _pin: PhantomPinned,
     /// }
     ///
-    /// fn init_count<G>(mut this: PinInitMe<'_, Count, G>) -> InitProof<(), G> {
+    /// fn init_count<G: Guard>(mut this: PinInitMe<'_, Count, G>) -> InitProof<(), G> {
     ///     // SAFETY: We write to uninitialized memory using a raw pointer that is valid
     ///     unsafe { addr_of_mut!((*this.as_mut_ptr()).count).write(42); }
     ///     // SAFETY: We write to uninitialized memory using a raw pointer that is valid
@@ -694,7 +684,7 @@ impl<'a, T: ?Sized, G> PinInitMe<'a, T, G> {
     ///     _pin: PhantomPinned,
     /// }
     ///
-    /// fn init_count<G>(mut this: PinInitMe<'_, Count, G>) -> InitProof<(), G> {
+    /// fn init_count<G: Guard>(mut this: PinInitMe<'_, Count, G>) -> InitProof<(), G> {
     ///     // SAFETY: We write to uninitialized memory using a raw pointer that is valid
     ///     unsafe { addr_of_mut!((*this.as_mut_ptr()).count).write(42); }
     ///     // SAFETY: We write to uninitialized memory using a raw pointer that is valid
@@ -712,16 +702,16 @@ impl<'a, T: ?Sized, G> PinInitMe<'a, T, G> {
     }
 }
 
-unsafe impl<'a, T: ?Sized, G> PartialInitPlace for PinInitMe<'a, T, G> {
+unsafe impl<'a, T: ?Sized, G: Guard> PartialInitPlace for PinInitMe<'a, T, G> {
     type Init = InitProof<(), G>;
     type Raw = T;
-    type InitMe<'b, GG>
+    type InitMe<'b, GG: Guard>
     = PinInitMe<'b, T, GG>
     where
         Self: 'b
     ;
 
-    unsafe fn ___init_me<GG>(this: &mut Self, _guard: GG) -> Self::InitMe<'_, GG> {
+    unsafe fn ___init_me<GG: Guard>(this: &mut Self, _guard: GG) -> Self::InitMe<'_, GG> {
         PinInitMe {
             ptr: this.ptr,
             _phantom: PhantomData,
@@ -742,7 +732,7 @@ unsafe impl<'a, T: ?Sized, G> PartialInitPlace for PinInitMe<'a, T, G> {
     unsafe fn ___i_have_read_the_documetation_and_verified_that_everything_is_correct() {}
 }
 
-unsafe impl<'a, T: ?Sized, G> PinnedPlace for PinInitMe<'a, T, G> {}
+unsafe impl<'a, T: ?Sized, G: Guard> PinnedPlace for PinInitMe<'a, T, G> {}
 
 /// Proof to show, that a value was indeed initialized.
 ///
@@ -752,13 +742,13 @@ unsafe impl<'a, T: ?Sized, G> PinnedPlace for PinInitMe<'a, T, G> {}
 /// The second parameter `G` is a guard type value that is set up and used by the macros to ensure
 /// sound initialization.
 /// See [here](#guard-parameter) for an explanation on this parameter.
-pub struct InitProof<T, G> {
+pub struct InitProof<T, G: Guard> {
     value: T,
     // correct invariance, we only accept the exact type G
     _phantom: PhantomData<fn(G) -> G>,
 }
 
-impl<T, G> InitProof<T, G> {
+impl<T, G: Guard> InitProof<T, G> {
     /// Unwrap the actual result contained within and validate that the correct guard type was
     /// used.
     ///
@@ -769,7 +759,7 @@ impl<T, G> InitProof<T, G> {
     }
 }
 
-impl<G> InitProof<(), G> {
+impl<G: Guard> InitProof<(), G> {
     /// Return a value instead of `()`.
     ///
     /// # Examples
@@ -791,7 +781,7 @@ impl<G> InitProof<(), G> {
     ///     }
     /// }
     ///
-    /// fn init_count<G>(mut this: PinInitMe<'_, usize, G>) -> InitProof<*mut usize, G> {
+    /// fn init_count<G: Guard>(mut this: PinInitMe<'_, usize, G>) -> InitProof<*mut usize, G> {
     ///     let ptr = this.as_mut_ptr();
     ///     let proof = this.write(42);
     ///     // we want to return the pointer at the same time
@@ -813,6 +803,44 @@ impl<G> InitProof<(), G> {
         }
     }
 }
+
+/// Marker trait used to mark guard parameters.
+///
+/// # What is a Guard parameter?
+///
+/// A guard parameter is a type parameter with this trait as the only bound.
+/// It is used to ensure that an init-function does indeed initialize the advertised field.
+///
+/// The [`InitPointer<T, G>`]s from this library have a guard parameter and each init-function needs to
+/// return an [`InitProof<R, G>`] with the same guard parameter `G`.
+///
+/// [`InitProof<(), G>`] can only be constructed by the following ways:
+/// - [`InitMe::write`] / [`PinInitMe::write`] (directly initialize the value)
+/// - [`InitMe::assume_init`] / [`PinInitMe::assume_init`] (unsafely assume initialization, this of
+/// course needs to be validated manually and used very carefully!)
+/// - [`init!`] used on [`InitMe<T, G>`] / [`PinInitMe<T, G>`]
+///
+///
+///
+/// # Implementing
+///
+/// You only need to implement this trait, if you are working on a similar macro as the ones provided
+/// by this library. Otherwise **do not implement this trait!**
+///
+/// If you implement it, view the way this library implements it and then carefully abide by the
+/// following safety section.
+///
+/// # Safety
+///
+/// Only
+/// - ZST structs/
+/// - types that are not accesible globally/
+/// - types that do not implement [`Copy`]/
+///
+/// may implement this trait.
+///
+/// [`InitProof<(), G>`]: InitProof
+pub unsafe trait Guard {}
 
 /// Workaround to avoid a clippy error lint.
 ///

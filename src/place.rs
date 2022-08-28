@@ -5,10 +5,10 @@
 //! it. Please read the hidden documentation in the code for each of the functions you need to
 //! implement.
 
-use crate::{InitMe, InitPointer, PinInitMe};
+use crate::{Guard, InitMe, InitPointer, PinInitMe};
 #[cfg(feature = "std")]
 use alloc::boxed::Box;
-use core::{mem::MaybeUninit, pin::Pin};
+use core::{cell::UnsafeCell, mem::MaybeUninit, pin::Pin};
 
 macro_rules! cfg_std {
     ($($stuff:item)*) => {
@@ -46,40 +46,23 @@ pub unsafe trait PartialInitPlace {
     type Raw: ?Sized;
     /// This type should either be `PinInit<'a, Self::Raw, G>` or `InitMe<'a, Self::Raw, G>`.
     /// It is used to completely delegate the initialization to a single function.
-    type InitMe<'a, G>: InitPointer<'a, Self::Raw, G>
+    type InitMe<'a, G: Guard>: InitPointer<'a, Self::Raw, G>
     where
         Self: 'a;
 
-    /// # **WARNING: MACRO ONLY FUNCTION**
-    ///
-    /// This function is only designed to be called by the macros of this library.
-    /// Using it directly might run into **unexpected and undefined behavior!**
-    ///
-    /// I repeat: **DO NOT USE THIS FUNCTION!!**
-    ///
-    /// # Safety
-    ///
-    /// The caller guarantees that this function is only called from macros of this library.
+    #[doc = include_str!("macro_only.md")]
+    /// - `guard` is not accesible by unauthorized code.
     ///
     /// # Implementing
     ///
     /// This function should not be implemented manually!
-    #[doc(hidden)]
-    unsafe fn ___init_me<G>(this: &mut Self, guard: G) -> Self::InitMe<'_, G> {
+    unsafe fn ___init_me<G: Guard>(this: &mut Self, guard: G) -> Self::InitMe<'_, G> {
         // SAFETY: macro only function
         unsafe { InitPointer::___new(Self::___as_mut_ptr(this, &|_| {}), guard) }
     }
 
-    /// # **WARNING: MACRO ONLY FUNCTION**
-    ///
-    /// This function is only designed to be called by the macros of this library.
-    /// Using it directly might run into **unexpected and undefined behavior!**
-    ///
-    /// I repeat: **DO NOT USE THIS FUNCTION!!**
-    ///
-    /// # Safety
-    ///
-    /// The caller guarantees that this function is only called from macros of this library.
+    #[doc = include_str!("macro_only.md")]
+    /// - all fields have been fully initialized.
     ///
     /// # Implementing
     ///
@@ -99,27 +82,15 @@ pub unsafe trait PartialInitPlace {
     /// [`Box<T>`]: [`alloc::boxed::Box`]
     /// [`Box<MaybeUninit<T>>`]: [`core::mem::MaybeUninit`]
     /// [`MaybeUninit<T>`]: [`core::mem::MaybeUninit`]
-    #[doc(hidden)]
     unsafe fn ___init(this: Self) -> Self::Init;
 
-    /// # **WARNING: MACRO ONLY FUNCTION**
-    ///
-    /// This function is only designed to be called by the macros of this library.
-    /// Using it directly might run into **unexpected and undefined behavior!**
-    ///
-    /// I repeat: **DO NOT USE THIS FUNCTION!!**
-    ///
-    /// # Safety
-    ///
-    /// The caller guarantees that this function is only called from macros of this library.
+    #[doc = include_str!("macro_only.md")]
+    /// - the pointee is not moved out of the pointer.
     ///
     /// # Implementing
     ///
-    /// - calling this function is only marked as unsafe, because it should not be called by normal
-    /// code,
     /// - always return the same pointer,
     /// - no side effects allowed.
-    #[doc(hidden)]
     unsafe fn ___as_mut_ptr(this: &mut Self, _proof: &impl FnOnce(&Self::Raw)) -> *mut Self::Raw;
 
     #[doc(hidden)]
@@ -136,7 +107,7 @@ pub unsafe trait PinnedPlace: PartialInitPlace {}
 unsafe impl<T> PartialInitPlace for MaybeUninit<T> {
     type Init = T;
     type Raw = T;
-    type InitMe<'a, G>
+    type InitMe<'a, G: Guard>
     = InitMe<'a, T, G>
     where
         Self: 'a
@@ -158,7 +129,7 @@ cfg_std! {
     unsafe impl<T> PartialInitPlace for Box<MaybeUninit<T>> {
         type Init = Box<T>;
         type Raw = T;
-        type InitMe<'a, G>
+        type InitMe<'a, G: Guard>
         = InitMe<'a, T, G>
         where
             Self: 'a
@@ -184,7 +155,7 @@ where
 {
     type Init = Pin<P::Init>;
     type Raw = P::Raw;
-    type InitMe<'a, G>
+    type InitMe<'a, G: Guard>
     = PinInitMe<'a, P::Raw, G>
     where
         Self: 'a
@@ -267,62 +238,87 @@ cfg_std! {
     }
 }
 
+/// # ⛔⛔⛔ **MACRO ONLY STRUCT** ⛔⛔⛔
+///
+/// This struct is only designed to be used by the macros of this library.
+/// Using it directly might run into **unexpected and undefined behavior!**
+///
+/// I repeat: **DO NOT DECLARE/ALLOCATE/INITIALIZE THIS STRUCT MANUALLY!!**,
+/// use the [`static_init!`] macro for that.
+
+/// See the documentation of the [`static_init!`] macro to understand on how to declare this
+/// struct. This struct should not be used directly.
+///
 /// # Safety
-/// Only use this type in static fields and initialize the contents before they are being used
-/// (deref for example).
-pub struct StaticInit<T> {
-    inner: MaybeUninit<T>,
+///
+/// DO NOT USE MANUALLY, use the [`static_init!`] macro instead.
+///
+/// [`static_init!`]: crate::static_init
+pub struct ___StaticInit<T> {
+    inner: UnsafeCell<MaybeUninit<T>>,
 }
 
-impl<T> StaticInit<T> {
-    /// # Safety
-    /// You need to initialize the contents via the init! macro.
-    pub const unsafe fn new() -> Self {
+impl<T> ___StaticInit<T> {
+    #[doc = include_str!("macro_only.md")]
+    /// - the returned value is initialized before it is used.
+    pub const unsafe fn ___new() -> Self {
         Self {
-            inner: MaybeUninit::uninit(),
+            inner: UnsafeCell::new(MaybeUninit::uninit()),
+        }
+    }
+    #[doc = include_str!("macro_only.md")]
+    /// - pointer points to uninitialized memory.
+    pub unsafe fn ___as_mut_ptr(&self) -> *mut T {
+        unsafe {
+            // SAFETY: the pointer is valid and not misused, as this is a macro
+            // only function
+            (&mut *self.inner.get()).as_mut_ptr()
         }
     }
 }
 
-impl<T> core::ops::Deref for StaticInit<T> {
+impl<T> core::ops::Deref for ___StaticInit<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
         unsafe {
             // SAFETY: our type invariants dictates that our value has been initialized.
-            self.inner.assume_init_ref()
+            (&*self.inner.get()).assume_init_ref()
         }
     }
 }
 
-impl<T> core::ops::DerefMut for StaticInit<T> {
+impl<T> core::ops::DerefMut for ___StaticInit<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         unsafe {
             // SAFETY: our type invariant dictates that our value has been initialized.
-            self.inner.assume_init_mut()
+            self.inner.get_mut().assume_init_mut()
         }
     }
 }
 
-unsafe impl<T> PartialInitPlace for StaticInit<T> {
-    type Init = !;
-    type Raw = T;
-    type InitMe<'a, G> = PinInitMe<'a, T, G> where Self: 'a;
-
-    unsafe fn ___init(_this: Self) -> Self::Init {
-        panic!("this function is not designed to be called!")
-    }
-
-    unsafe fn ___as_mut_ptr(this: &mut Self, _proof: &impl FnOnce(&Self::Raw)) -> *mut Self::Raw {
-        this.inner.as_mut_ptr()
-    }
-
-    unsafe fn ___i_have_read_the_documetation_and_verified_that_everything_is_correct() {}
+pub unsafe trait StaticConstructor {
+    unsafe extern "C" fn construct();
 }
 
-/// DO NOT IMPLEMENT MANUALLY, use the `pin_data!` macro.
-#[doc(hidden)]
+/// # ⛔⛔⛔ **MACRO ONLY TRAIT** ⛔⛔⛔
+///
+/// This trait is only designed to be implemented by the macros of this library.
+/// Using it directly might run into **unexpected and undefined behavior!**
+///
+/// I repeat: **DO NOT IMPLEMENT THIS TRAIT MANUALLY!!**, use the [`pin_data!`] macro for that.
+///
+/// # Safety
+///
+/// DO NOT IMPLEMENT MANUALLY, use the [`pin_data!`] macro instead.
+///
+/// [`pin_data!`]: crate::pin_data
 pub unsafe trait ___PinData {
-    #[doc(hidden)]
+    /// # ⛔⛔⛔ **MACRO ONLY TYPE** ⛔⛔⛔
+    ///
+    /// This type is only designed to be implemented by the macros of this library.
+    /// Using it directly might run into **unexpected and undefined behavior!**
+    ///
+    /// I repeat: **DO NOT USE THIS TYPE MANUALLY!!**
     type ___PinData;
 }

@@ -23,7 +23,7 @@
 ///     x: u8,
 /// }
 ///
-/// fn init_limit<G>(mut limit: InitMe<'_, usize, G>, limit_type: u8) -> InitProof<(), G> {
+/// fn init_limit<G: Guard>(mut limit: InitMe<'_, usize, G>, limit_type: u8) -> InitProof<(), G> {
 ///     extern "C" {
 ///         fn __init_limit(ptr: *mut usize, typ: u8);
 ///     }
@@ -41,7 +41,7 @@
 ///     };
 /// }
 ///
-/// fn init_bar<G>(bar: InitMe<'_, isize, G>) -> InitProof<isize, G> {
+/// fn init_bar<G: Guard>(bar: InitMe<'_, isize, G>) -> InitProof<isize, G> {
 ///     bar.write(1).ret(1)
 /// }
 ///
@@ -212,6 +212,7 @@ macro_rules! init {
             // outside of this macro.
             #[doc(hidden)]
             struct ___LocalGuard;
+            unsafe impl $crate::Guard for ___LocalGuard {}
             let mut var = Some(&$var);
             var = None;
             // get the correct pin projection (handled by the ___PinData type)
@@ -253,14 +254,24 @@ macro_rules! init {
         match $var {
             mut var => {
                 {
+                    // this type is used as the guard parameter on `(Pin)InitMe` and ensures that we
+                    // definitely initialize the specified field. we scope it here, to ensure no usage
+                    // outside of this macro.
+                    #[doc(hidden)]
                     struct ___LocalGuard;
+                    unsafe impl $crate::Guard for ___LocalGuard {}
                     let value = unsafe {
                         // SAFETY: we own `var` and assume it is initialized below
                         $crate::place::PartialInitPlace::___init_me(&mut var, ___LocalGuard)
                     };
                     let guard = ___LocalGuard;
                     {
+                        // shadow the type def
+                        #[doc(hidden)]
                         struct ___LocalGuard;
+                        // unwrap the value produced by the function immediately, do not give access to the
+                        // raw InitProof. Validate using the guard, if guard would be used a second time,
+                        // then a move error would occur.
                         let () = $crate::InitProof::unwrap($($init)*(value $(, $($rest)*)?), guard);
                     }
                 }
@@ -319,7 +330,7 @@ macro_rules! pin_data {
         };
     };
     (@@make_fn(($vis:vis) pin $field:ident : $typ:ty)) => {
-        $vis unsafe fn $field<'a, T, P: $crate::place::PinnedPlace, G>(ptr: *mut T, _place: Option<&P>, guard: G) -> $crate::PinInitMe<'a, T, G> {
+        $vis unsafe fn $field<'a, T, P: $crate::place::PinnedPlace, G: $crate::Guard>(ptr: *mut T, _place: Option<&P>, guard: G) -> $crate::PinInitMe<'a, T, G> {
             unsafe {
                 // SAFETY: pointer is valid.
                 <$crate::PinInitMe<'a, T, G> as $crate::InitPointer<'a, T, G>>::___new(ptr, guard)
@@ -327,7 +338,7 @@ macro_rules! pin_data {
         }
     };
     (@@make_fn(($vis:vis) $field:ident : $typ:ty)) => {
-        $vis unsafe fn $field<'a, T,P: $crate::place::PartialInitPlace, G>(ptr: *mut T, _place: Option<&P>, guard: G) -> $crate::InitMe<'a, T, G> {
+        $vis unsafe fn $field<'a, T,P: $crate::place::PartialInitPlace, G: $crate::Guard>(ptr: *mut T, _place: Option<&P>, guard: G) -> $crate::InitMe<'a, T, G> {
             unsafe {
                 // SAFETY: pointer is valid.
                 <$crate::InitMe<'a, T, G> as $crate::InitPointer<'a, T, G>>::___new(ptr, guard)
@@ -387,7 +398,7 @@ macro_rules! pin_data {
 ///             println!("'{}' says MyPinnedStruct at {:X}", self.msg, self.my_addr);
 ///         }
 ///
-///         pub fn init<G>(mut this: PinInitMe<'_, Self, G>, msg: String) -> InitProof<(), G> {
+///         pub fn init<G: Guard>(mut this: PinInitMe<'_, Self, G>, msg: String) -> InitProof<(), G> {
 ///             let addr = this.as_mut_ptr() as usize;
 ///             init! { this => Self {
 ///                 ._p = PhantomPinned;
@@ -408,7 +419,12 @@ macro_rules! stack_init {
     ($var:ident: $typ:ident $(<$($generic:ty),*>)? => { $($tail:tt)* }) => {
         let mut $var: ::core::mem::MaybeUninit<$typ $(<$($generic),*>)?> = ::core::mem::MaybeUninit::uninit();
         {
+            // this type is used as the guard parameter on `(Pin)InitMe` and ensures that we
+            // definitely initialize the specified field. we scope it here, to ensure no usage
+            // outside of this macro.
+            #[doc(hidden)]
             struct ___LocalGuard;
+            unsafe impl $crate::Guard for ___LocalGuard {}
             let tmp = unsafe {
                 // SAFETY: we never move out of $var and shadow it at the end so
                 // no one can move out of it.
@@ -419,6 +435,8 @@ macro_rules! stack_init {
             };
             let guard = ___LocalGuard;
             {
+                // shadow the type def
+                #[doc(hidden)]
                 struct ___LocalGuard;
                 let () = $crate::InitProof::unwrap(
                     $crate::init! { tmp => $typ $(<$($generic),*>)? { $($tail)* }},
@@ -434,7 +452,12 @@ macro_rules! stack_init {
     ($var:ident: $typ:ident $(<$($generic:ty),*>)? => ( $($tail:tt)* )) => {
         let mut $var: ::core::mem::MaybeUninit<$typ $(<$($generic),*>)?> = ::core::mem::MaybeUninit::uninit();
         {
+            // this type is used as the guard parameter on `(Pin)InitMe` and ensures that we
+            // definitely initialize the specified field. we scope it here, to ensure no usage
+            // outside of this macro.
+            #[doc(hidden)]
             struct ___LocalGuard;
+            unsafe impl $crate::Guard for ___LocalGuard {}
             let $var = unsafe {
                 // SAFETY: we never move out of $var and shadow it at the end so
                 // no one can move out of it.
@@ -445,6 +468,8 @@ macro_rules! stack_init {
             };
             let guard = ___LocalGuard;
             {
+                // shadow the type def
+                #[doc(hidden)]
                 struct ___LocalGuard;
                 let () = $crate::InitProof::unwrap(
                     $crate::init!($($tail)*),
@@ -456,5 +481,53 @@ macro_rules! stack_init {
         let mut $var = unsafe {
             ::core::pin::Pin::new_unchecked(::core::mem::MaybeUninit::assume_init_mut(&mut $var))
         };
+    };
+}
+
+/// Declacre and initialize a
+#[macro_export]
+macro_rules! static_init {
+    (
+        [unsafe { $invoke_ctor:ident }]
+        $(
+            $(#[$attr:meta])* $v:vis static $name:ident: $typ:ty $(= {$($inner:tt)*})?;
+        )*
+    ) => {
+        $(
+            $(#[$attr])* $v static $name: $crate::place::StaticInit<$typ> = {
+                struct ___Initializer;
+                impl $crate::place::StaticConstructor for ___Initializer {
+                    unsafe extern "C" fn construct() {
+                        // SAFETY: the constructor is only accessible to the invoke_ctor
+                        struct ___LocalGuard;
+                        unsafe impl $crate::Guard for ___LocalGuard {}
+                        let guard = ___LocalGuard;
+                        // SAFETY: static cannot move, so we can init it in place.
+                        let pinned = unsafe {
+                            $crate::PinInitMe::___new(
+                                $crate::place::StaticInit::___as_mut_ptr(&$name),
+                                guard
+                            )
+                        };
+                        let guard = ___LocalGuard;
+                        {
+                            struct ___LocalGuard;
+                            let $name = pinned;
+                            let () = $crate::InitProof::unwrap(init!($($inner)*), guard);
+                        }
+                    }
+                }
+                unsafe {
+                    // SAFETY: caller used an unsafe block to specify the `invoke_ctor!` macro.
+                    // so we can use it here.
+                    invoke_ctor!(<___Initializer as $crate::place::StaticConstructor>::construct);
+                }
+                unsafe {
+                    // SAFETY: we require the macro caller to provide a valid `invoke_ctor!`
+                    // which we called with our initializer above.
+                    $crate::place::StaticInit<$typ>::___new()
+                }
+            };
+        )*
     };
 }
