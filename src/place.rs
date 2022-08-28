@@ -92,9 +92,6 @@ pub unsafe trait PartialInitPlace {
     /// - always return the same pointer,
     /// - no side effects allowed.
     unsafe fn ___as_mut_ptr(this: &mut Self, _proof: &impl FnOnce(&Self::Raw)) -> *mut Self::Raw;
-
-    #[doc(hidden)]
-    unsafe fn ___i_have_read_the_documetation_and_verified_that_everything_is_correct();
 }
 
 /// Marker trait used to mark Places where the value cannot be moved out of. Example:
@@ -121,8 +118,6 @@ unsafe impl<T> PartialInitPlace for MaybeUninit<T> {
     unsafe fn ___as_mut_ptr(this: &mut Self, _proof: &impl FnOnce(&Self::Raw)) -> *mut Self::Raw {
         this.as_mut_ptr()
     }
-
-    unsafe fn ___i_have_read_the_documetation_and_verified_that_everything_is_correct() {}
 }
 
 cfg_std! {
@@ -142,8 +137,6 @@ cfg_std! {
         unsafe fn ___as_mut_ptr(this: &mut Self, _proof: &impl FnOnce(&Self::Raw)) -> *mut Self::Raw {
             MaybeUninit::as_mut_ptr(&mut **this)
         }
-
-        unsafe fn ___i_have_read_the_documetation_and_verified_that_everything_is_correct() {}
     }
 }
 
@@ -170,8 +163,6 @@ where
         // SAFETY: macro never moves out of the pointer returned
         unsafe { T::___as_mut_ptr(Pin::get_unchecked_mut(this.as_mut()), _proof) }
     }
-
-    unsafe fn ___i_have_read_the_documetation_and_verified_that_everything_is_correct() {}
 }
 
 unsafe impl<P, T> PinnedPlace for Pin<P>

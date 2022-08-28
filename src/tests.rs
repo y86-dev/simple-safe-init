@@ -68,7 +68,7 @@ fn basic() {}
 /// }
 ///
 /// impl Foo {
-///     pub fn init_foo<G>(foo: InitMe<'_, Self, G>) -> InitProof<(), G> {
+///     pub fn init_foo<G: Guard>(foo: InitMe<'_, Self, G>) -> InitProof<(), G> {
 ///         init! { foo => Foo {
 ///             .a = 42;
 ///             .b = 36;
@@ -96,7 +96,7 @@ fn delegate() {}
 /// }
 ///
 /// impl Foo {
-///     pub fn init_foo<G>(foo: InitMe<'_, Self, G>, dbg: &str) -> InitProof<(), G> {
+///     pub fn init_foo<G: Guard>(foo: InitMe<'_, Self, G>, dbg: &str) -> InitProof<(), G> {
 ///         println!("{}", dbg);
 ///         init! { foo => Foo {
 ///             .a = 42;
@@ -124,7 +124,7 @@ fn delegate() {}
 /// }
 ///
 /// impl Foo {
-///     pub fn init_foo<G>(foo: InitMe<'_, Self, G>) -> InitProof<(), G> {
+///     pub fn init_foo<G: Guard>(foo: InitMe<'_, Self, G>) -> InitProof<(), G> {
 ///         init! { foo => Foo {
 ///             .a = 42;
 ///             .b = 36;

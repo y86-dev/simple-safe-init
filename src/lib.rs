@@ -333,7 +333,6 @@ extern crate alloc;
 mod macros;
 pub mod place;
 
-#[cfg(tests)]
 mod tests;
 
 use crate::place::*;
@@ -537,8 +536,6 @@ unsafe impl<'a, T: ?Sized, G: Guard> PartialInitPlace for InitMe<'a, T, G> {
     unsafe fn ___as_mut_ptr(this: &mut Self, _proof: &impl FnOnce(&Self::Raw)) -> *mut Self::Raw {
         this.ptr
     }
-
-    unsafe fn ___i_have_read_the_documetation_and_verified_that_everything_is_correct() {}
 }
 
 /// A pointer to an uninitialized `T` that will not move after initialization.
@@ -723,8 +720,6 @@ unsafe impl<'a, T: ?Sized, G: Guard> PartialInitPlace for PinInitMe<'a, T, G> {
     unsafe fn ___as_mut_ptr(this: &mut Self, _proof: &impl FnOnce(&Self::Raw)) -> *mut Self::Raw {
         this.ptr
     }
-
-    unsafe fn ___i_have_read_the_documetation_and_verified_that_everything_is_correct() {}
 }
 
 unsafe impl<'a, T: ?Sized, G: Guard> PinnedPlace for PinInitMe<'a, T, G> {}
