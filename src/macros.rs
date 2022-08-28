@@ -234,7 +234,7 @@ macro_rules! init {
                 // unwrap the value produced by the function immediately, do not give access to the
                 // raw InitProof. Validate using the guard, if guard would be used a second time,
                 // then a move error would occur.
-                result = $crate::InitProof::unwrap($($call)*, guard);
+                result = $crate::InitProof::___unwrap($($call)*, guard);
             }
         }
         $(let $binding = result;)?
@@ -272,7 +272,7 @@ macro_rules! init {
                         // unwrap the value produced by the function immediately, do not give access to the
                         // raw InitProof. Validate using the guard, if guard would be used a second time,
                         // then a move error would occur.
-                        let () = $crate::InitProof::unwrap($($init)*(value $(, $($rest)*)?), guard);
+                        let () = $crate::InitProof::___unwrap($($init)*(value $(, $($rest)*)?), guard);
                     }
                 }
                 unsafe {
@@ -438,7 +438,7 @@ macro_rules! stack_init {
                 // shadow the type def
                 #[doc(hidden)]
                 struct ___LocalGuard;
-                let () = $crate::InitProof::unwrap(
+                let () = $crate::InitProof::___unwrap(
                     $crate::init! { tmp => $typ $(<$($generic),*>)? { $($tail)* }},
                     guard
                 );
@@ -471,7 +471,7 @@ macro_rules! stack_init {
                 // shadow the type def
                 #[doc(hidden)]
                 struct ___LocalGuard;
-                let () = $crate::InitProof::unwrap(
+                let () = $crate::InitProof::___unwrap(
                     $crate::init!($($tail)*),
                     guard
                 );
@@ -513,7 +513,7 @@ macro_rules! static_init {
                         {
                             struct ___LocalGuard;
                             let $name = pinned;
-                            let () = $crate::InitProof::unwrap(init!($($inner)*), guard);
+                            let () = $crate::InitProof::___unwrap(init!($($inner)*), guard);
                         }
                     }
                 }

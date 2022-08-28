@@ -749,12 +749,14 @@ pub struct InitProof<T, G: Guard> {
 }
 
 impl<T, G: Guard> InitProof<T, G> {
+    #[doc = include_str!("macro_only.md")]
+    /// . TODO
+    ///
+    /// #
+    ///
     /// Unwrap the actual result contained within and validate that the correct guard type was
     /// used.
-    ///
-    /// Users of the library generally do not need to call this.
-    #[doc(hidden)]
-    pub fn unwrap(self, _guard: G) -> T {
+    pub fn ___unwrap(self, _guard: G) -> T {
         self.value
     }
 }
