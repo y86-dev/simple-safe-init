@@ -63,6 +63,14 @@
 ///     // you can use arbitrary rust statements ...
 /// }};
 /// ```
+#[cfg(doc)]
+#[macro_export]
+macro_rules! init {
+    () => {};
+}
+
+// to avoid displaying all of the inner rules
+#[cfg(not(doc))]
 #[macro_export]
 macro_rules! init {
     // initialize an arbitrary expression manually (init each field).
@@ -484,43 +492,56 @@ macro_rules! stack_init {
     };
 }
 
-/// Declacre and initialize a
+/// Declacre and initialize a static variable using a user-defined ctor implementation.
+///
+/// You will need to specify a ctor macro that takes a single function
+/// (`unsafe extern "C" fn()`) as its only parameter. It will need to execute that function in the
+/// ctor.
+///
+/// # Safety
+/// You need to supply a valid ctor macro, it needs to satisfy the following properties:
+/// - take a single parameter that is a path to a function with no parameters and C calling
+/// convention,
+/// - that function needs to be called within a static initializer, such that no accesses occurr to the
+/// statics defined here.
+///
+///
 #[macro_export]
 macro_rules! static_init {
     (
-        [unsafe { $invoke_ctor:ident }]
+        [unsafe { $invoke_ctor:path }]
         $(
             $(#[$attr:meta])* $v:vis static $name:ident: $typ:ty $(= {$($inner:tt)*})?;
         )*
     ) => {
         $(
             $(#[$attr])* $v static $name: $crate::place::StaticInit<$typ> = {
-                struct ___Initializer;
-                impl $crate::place::StaticConstructor for ___Initializer {
-                    unsafe extern "C" fn construct() {
-                        // SAFETY: the constructor is only accessible to the invoke_ctor
+                #[doc(hidden)]
+                unsafe extern "C" fn construct() {
+                    // SAFETY: the constructor is only accessible to the invoke_ctor
+                    #[doc(hidden)]
+                    struct ___LocalGuard;
+                    unsafe impl $crate::Guard for ___LocalGuard {}
+                    let guard = ___LocalGuard;
+                    // SAFETY: static cannot move, so we can init it in place.
+                    let pinned = unsafe {
+                        $crate::PinInitMe::___new(
+                            $crate::place::StaticInit::___as_mut_ptr(&$name),
+                            guard
+                        )
+                    };
+                    let guard = ___LocalGuard;
+                    {
+                        #[doc(hidden)]
                         struct ___LocalGuard;
-                        unsafe impl $crate::Guard for ___LocalGuard {}
-                        let guard = ___LocalGuard;
-                        // SAFETY: static cannot move, so we can init it in place.
-                        let pinned = unsafe {
-                            $crate::PinInitMe::___new(
-                                $crate::place::StaticInit::___as_mut_ptr(&$name),
-                                guard
-                            )
-                        };
-                        let guard = ___LocalGuard;
-                        {
-                            struct ___LocalGuard;
-                            let $name = pinned;
-                            let () = $crate::InitProof::___unwrap(init!($($inner)*), guard);
-                        }
+                        let $name = pinned;
+                        let () = $crate::InitProof::___unwrap(init!($($inner)*), guard);
                     }
                 }
                 unsafe {
                     // SAFETY: caller used an unsafe block to specify the `invoke_ctor!` macro.
                     // so we can use it here.
-                    invoke_ctor!(<___Initializer as $crate::place::StaticConstructor>::construct);
+                    invoke_ctor!(construct);
                 }
                 unsafe {
                     // SAFETY: we require the macro caller to provide a valid `invoke_ctor!`

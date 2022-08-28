@@ -245,9 +245,6 @@ cfg_std! {
 ///
 /// I repeat: **DO NOT DECLARE/ALLOCATE/INITIALIZE THIS STRUCT MANUALLY!!**,
 /// use the [`static_init!`] macro for that.
-
-/// See the documentation of the [`static_init!`] macro to understand on how to declare this
-/// struct. This struct should not be used directly.
 ///
 /// # Safety
 ///
@@ -295,10 +292,6 @@ impl<T> core::ops::DerefMut for ___StaticInit<T> {
             self.inner.get_mut().assume_init_mut()
         }
     }
-}
-
-pub unsafe trait StaticConstructor {
-    unsafe extern "C" fn construct();
 }
 
 /// # ⛔⛔⛔ **MACRO ONLY TRAIT** ⛔⛔⛔
