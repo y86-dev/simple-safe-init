@@ -79,9 +79,9 @@ pub unsafe trait PartialInitPlace {
     ///
     /// No side effects allowed.
     ///
-    /// [`Box<T>`]: [`alloc::boxed::Box`]
-    /// [`Box<MaybeUninit<T>>`]: [`core::mem::MaybeUninit`]
-    /// [`MaybeUninit<T>`]: [`core::mem::MaybeUninit`]
+    /// [`Box<T>`]: [`alloc::boxed::Box<T>`]
+    /// [`Box<MaybeUninit<T>>`]: [`core::mem::MaybeUninit<T>`]
+    /// [`MaybeUninit<T>`]: [`core::mem::MaybeUninit<T>`]
     unsafe fn ___init(this: Self) -> Self::Init;
 
     #[doc = include_str!("macro_only.md")]

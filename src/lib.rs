@@ -4,6 +4,9 @@
 //!
 //! Readers are expected to know what [pinning](https://doc.rust-lang.org/std/pin/index.html) is.
 //!
+//! There are some macro only types, functions and other items. They begin with `___` triple
+//! underscores and should not be used. The only exception is, if you intend to extend this library.
+//!
 //! # Getting Started
 //! Suppose you have a struct that you want to initialize while it is pinned. For Example:
 //! ```rust
@@ -168,12 +171,12 @@
 //! `pin_data!` informs the [`init!`] macro what fields are structurally pinned by scanning for a
 //! `#pin` before any attributes (remember that doc comments are also attributes).
 //! The [`init!`] macro creates an init-pointer from the given fields. Depending on the presence of
-//! `#pin` it creates [`InitMe`] or [`PinInitMe`].
+//! `#pin` it creates [`InitMe<T, G>`] or [`PinInitMe<T, G>`].
 //!
 //! ## Macro initialization
 //!
 //! You can also use init-macros, they have a similar syntax as the init-functions. The first thing
-//! is an expression evaluating to [`InitMe`] or [`PinInitMe`]. After that a comma is expected, if
+//! is an expression evaluating to [`InitMe<T, G>`] or [`PinInitMe<T, G>`]. After that a comma is expected, if
 //! more input is passed to the macro. No further restrictions exist.
 //!
 //! Here is an example of an init-macro:
@@ -224,7 +227,7 @@
 //! ```
 //! ## Convenient shortcuts
 //! There are some shortcuts for common expressions:
-//! ### Avoid creating [`MaybeUninit`]
+//! ### Avoid creating [`MaybeUninit<T>`]
 //! In the previous examples, we always had to create some uninitialized memory. It is very common
 //! to write `Box::pin(MaybeUninit::uninit())` or doing this with other smart pointers. For that
 //! reason the [`init!`] macro supports the following shortcut:
@@ -310,10 +313,11 @@
 //! `field` and uses [`core::ptr::write`] to set it to `expr`.
 //!
 //! When a user writes `$func(.$field);`, then a raw pointer is again created and used to create a
-//! [`InitMe`] or [`PinInitMe`]. To do this a guard parameter is also required. It is currently
-//! implemented as a local type which is shadowed to prevent accidental/malicious use.
+//! [`InitMe<T, G>`] or [`PinInitMe<T, G>`]. Where `T` is the field type. To do this a guard parameter
+//! is also required. It is currently implemented as a local type which is shadowed to prevent
+//! accidental/malicious use.
 //!
-//! [`MaybeUninit`]: [`core::mem::MaybeUninit`]
+//! [`MaybeUninit<T>`]: [`core::mem::MaybeUninit<T>`]
 //! [`MaybeUninit::write`]: [`core::mem::MaybeUninit::write`]
 //! [`Box<T>`]: [`alloc::boxed::Box<T>`]
 
@@ -346,12 +350,13 @@ mod sealed {
     impl<'a, T: ?Sized, G: Guard> Sealed for PinInitMe<'a, T, G> {}
 }
 
-/// A sealed trait used to enforce the correct function is called and no ambiguity arises when
-/// creating [`InitPointer`]s.
+/// A pointer used to point to uninitialized data that will need to be initialized.
 ///
 /// The only types implementing this trait are:
-/// - [`InitMe`],
-/// - [`PinInitMe`].
+/// - [`InitMe<T, G>`],
+/// - [`PinInitMe<T, G>`].
+///
+///
 pub trait InitPointer<'a, T: ?Sized, G: Guard>: sealed::Sealed + Pointer {
     #[doc = include_str!("macro_only.md")]
     /// - `ptr` is aligned and pointing to allocated memory,
@@ -468,8 +473,8 @@ impl<'a, T: ?Sized, G: Guard> InitMe<'a, T, G> {
 
     /// Gets a raw pointer to the pointee.
     ///
-    /// Initially (after creation of an [`InitMe`]) the memory will be uninitialized. Because
-    /// [`InitMe`] does not track partial initialization, using this function requires great care.
+    /// Initially (after creation of an [`InitMe<T, G>`]) the memory will be uninitialized. Because
+    /// [`InitMe<T, G>`] does not track partial initialization, using this function requires great care.
     /// Here are some of the hazards one could encounter:
     /// - overwriting a partially initialized value by calling [`InitMe::write`] (this will
     /// overwrite without calling drop),
@@ -651,8 +656,8 @@ impl<'a, T: ?Sized, G: Guard> PinInitMe<'a, T, G> {
 
     /// Gets a raw pointer to the pointee.
     ///
-    /// Initially (after creation of an [`PinInitMe`]) the memory will be uninitialized. Because
-    /// [`PinInitMe`] does not track partial initialization, using this function requires great care.
+    /// Initially (after creation of an [`PinInitMe<T, G>`]) the memory will be uninitialized. Because
+    /// [`PinInitMe<T, G>`] does not track partial initialization, using this function requires great care.
     /// Here are some of the hazards one could encounter:
     /// - overwriting a partially initialized value by calling [`PinInitMe::write`] (this will
     /// overwrite without calling drop),
