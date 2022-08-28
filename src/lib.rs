@@ -260,20 +260,34 @@
 //! This way you need to have access to all struct fields and you will need to provide an
 //! initializer handling every field of the struct individually.
 //!
-//! The initializer allows the following custom syntax while initializing the given `field`:
-//! - `.$field = $expr;` where `expr` is any rust expression,
-//! - `$func(.$field, $($param),*);` where `func` is an init function with the correct type for
-//! `field` (pay attention to the right pin status) and `param` are arbitrary rust expressions,
-//! - `~let $pat = $func(.$field, $($param),*);` where `func` and `param` are the same as before
-//! and `pat` is any rust pattern,
-//! - `unsafe { $func(.$field, $($param),*) };` where `func` and `param` as before, except `func`
-//! can be `unsafe`,
-//! - `~let $pat = unsafe { $func(.$field, $($param),*) };` where `func` and `param` are the same as before
-//! and `pat` is any rust pattern,
-//! - `$func(.$field, $($param),*).await;` where `func` is an async init function with the correct type for
-//! `field` (pay attention to the right pin status) and `param` are arbitrary rust expressions,
-//! - `~let $pat = $func(.$field, $($param),*).await;` where `func` and `param` are the same as before
-//! and `pat` is any rust pattern,
+//! The initializer allows the following custom syntax while initializing `$field` (each line is
+//! its own way of initializing `$field`):
+//! ```rust,no_run
+//! init! { val => Struct {
+//!     // `expr` is any rust expression:
+//!     .$field = $expr;
+//!
+//!     // `$func` is an init function with the correct type for `$field`
+//!     // (pay attention to the right pin status) and `$param` are arbitrary rust expressions:
+//!     $func(.$field, $($param),*);
+//!    
+//!     // `$func` and `$param` are the same as before and `$pat` is any rust pattern:
+//!     ~let $pat = $func(.$field, $($param),*);
+//!
+//!     // `$func` and `$param` are as before, except `$func` can be `unsafe`:
+//!     unsafe { $func(.$field, $($param),*) };
+//!    
+//!     // `$func` and `$param` are the same as before and `$pat` is any rust pattern:
+//!     ~let $pat = unsafe { $func(.$field, $($param),*) };
+//!
+//!     // `$func` is an init function with the correct type for `$field`
+//!     // (pay attention to the right pin status) and `$param` are arbitrary rust expressions:
+//!     $func(.$field, $($param),*).await;
+//!
+//!     // `$func` and `$param` are the same as before and `$pat` is any rust pattern:
+//!     ~let $pat = $func(.$field, $($param),*).await;
+//! }};
+//! ```
 //!
 //!
 //! ### Single init function/macro
