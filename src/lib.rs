@@ -268,6 +268,23 @@
 //!     .$field = $expr;
 //!
 //!     // `$func` is an init function with the correct type for `$field`
+//!     // (pay attention to the right pin status), `$param` are arbitrary rust expressions
+//!     // and `$pat` is any rust pattern:
+//!     ~let $pat = unsafe { $func(.$field, $($param),*).await };
+//!
+//!     // The following parts are optional:
+//!     // - the binding with `$pat`,
+//!     // - the await (then the function should not be async),
+//!     // - the unsafe (then the funcion should not be unsafe).
+//!     //
+//!     // They are listed below for completeness:
+//!
+//!     // `$func` is an init function with the correct type for `$field`
+//!     // (pay attention to the right pin status) and `$param` are arbitrary rust expressions:
+//!     unsafe { $func(.$field, $($param),*).await };
+//!
+//!
+//!     // `$func` is an init function with the correct type for `$field`
 //!     // (pay attention to the right pin status) and `$param` are arbitrary rust expressions:
 //!     $func(.$field, $($param),*);
 //!    
@@ -318,7 +335,7 @@
 //!
 //! These traits are mostly used to ensure only the right types are used to house uninitialized
 //! values. For example, [`Box<T>`] cannot hold uninitialized values of type `T`. And
-//! `Box<MaybeUninit<T>>` cannot be used for a type that requires pinning.
+//! [`Box`]`<`[`MaybeUninit<T>`]`>` cannot be used for a type that requires pinning.
 //! ### Unsafe
 //! To initialize uninitialized memory one either writes it using [`MaybeUninit::write`] or using
 //! raw pointers. The latter of course requires unsafe.
@@ -334,6 +351,7 @@
 //! [`MaybeUninit<T>`]: [`core::mem::MaybeUninit<T>`]
 //! [`MaybeUninit::write`]: [`core::mem::MaybeUninit::write`]
 //! [`Box<T>`]: [`alloc::boxed::Box<T>`]
+//! [`Box`]: [`alloc::boxed::Box<T>`]
 
 #![no_std]
 #![cfg_attr(feature = "std", feature(new_uninit))]

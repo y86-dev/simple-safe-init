@@ -203,6 +203,17 @@ macro_rules! init {
         $crate::init!(@@init_call($var, $name $(<$($generic),*>)?, $field, field_place, ($func $(:: $(<$($args),*>::)? $path)*(field_place $($rest)*).await), $($binding)?));
         $crate::init!(@@inner($var, $pin, ($($inner)* $field: $crate::conjure(),), ($name $(<$($generic),*>)?)) $($tail)*);
     };
+    // an unsafe async function call initializing a single field
+    (@@inner($var:ident, $pin:ident, ($($inner:tt)*), ($name:ident $(<$($generic:ty),*>)?))
+        $(~let $binding:pat = )? unsafe { $func:ident $(:: $(<$($args:ty),*$(,)?>::)? $path:ident)*(.$field:ident $($rest:tt)*).await };
+        $($tail:tt)*
+    ) => {
+        $crate::init!(@@init_call($var, $name $(<$($generic),*>)?, $field, field_place, (unsafe {
+            // SAFETY: macro-caller guarantees this is sound
+            $func $(:: $(<$($args),*>::)? $path)*(field_place $($rest)*).await }
+        ), $($binding)?));
+        $crate::init!(@@inner($var, $pin, ($($inner)* $field: $crate::conjure(),), ($name $(<$($generic),*>)?)) $($tail)*);
+    };
     // a normal statement that will be executed as-is.
     (@@inner($var:ident, $pin:ident, ($($inner:tt)*), ($($name:tt)*))
         $st:stmt;
