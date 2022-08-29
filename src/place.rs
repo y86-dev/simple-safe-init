@@ -101,6 +101,20 @@ pub unsafe trait PartialInitPlace {
 /// The value at this place cannot be moved.
 pub unsafe trait PinnedPlace: PartialInitPlace {}
 
+unsafe impl PartialInitPlace for ! {
+    type Init = !;
+    type Raw = !;
+    type InitMe<'a, G: Guard> = InitMe<'a, !, G> where Self: 'a;
+
+    unsafe fn ___init(this: Self) -> Self::Init {
+        this
+    }
+
+    unsafe fn ___as_mut_ptr(this: &mut Self, _proof: &impl FnOnce(&Self::Raw)) -> *mut Self::Raw {
+        *this
+    }
+}
+
 unsafe impl<T> PartialInitPlace for MaybeUninit<T> {
     type Init = T;
     type Raw = T;

@@ -229,7 +229,7 @@
 //! There are some shortcuts for common expressions:
 //! ### Avoid creating [`MaybeUninit<T>`]
 //! In the previous examples, we always had to create some uninitialized memory. It is very common
-//! to write `Box::pin(MaybeUninit::uninit())` or doing this with other smart pointers. For that
+//! to write [`Box::pin`]`(`[`MaybeUninit::uninit()`]`)` or doing this with other smart pointers. For that
 //! reason the [`init!`] macro supports the following shortcut:
 //! ```rust
 //! use core::{mem::MaybeUninit, pin::Pin, marker::PhantomPinned};
@@ -329,8 +329,11 @@
 //! - [`PartialInitPlace`] marks types that can be used as memory locations for initialization,
 //! - [`PinnedPlace`] marks [`PartialInitPlace`]s which have stable addresses for the duration of
 //! their existence,
+//! - [`InitPointer<T, G>`] marks init pointers and ensures users can only set an init pointer
+//! from this library as [`PartialInitPlace::InitMe`],
+//! - [`Guard`] marks guard parameters used to ensure validity of initialization,
 //! - [`AllocablePlace`] marks [`PartialInitPlace`]s which can be allocated,
-//! - *(hidden)* `___PinData` is implemented by the `pin_data!` macro, it is used to uphold
+//! - [`___PinData`] is implemented by the [`pin_data!`] macro, it is used to uphold
 //! the correct pinning invariants for each of the fields.
 //!
 //! These traits are mostly used to ensure only the right types are used to house uninitialized
@@ -348,10 +351,20 @@
 //! is also required. It is currently implemented as a local type which is shadowed to prevent
 //! accidental/malicious use.
 //!
+//! ### Struct Initializer
+//!
+//! The macro cumulates all fields it initialized and then builds a struct initializer with the
+//! given fields. This is done in a closure that is not executed, so it is only type checked.
+//! This ensures that no field is initialized twice and none are forgotten, because it leverages
+//! the normal behaviour of the compiler. It also provides nice compile errors, because
+//! declarative macros work well with the error spans.
+//!
 //! [`MaybeUninit<T>`]: [`core::mem::MaybeUninit<T>`]
 //! [`MaybeUninit::write`]: [`core::mem::MaybeUninit::write`]
 //! [`Box<T>`]: [`alloc::boxed::Box<T>`]
 //! [`Box`]: [`alloc::boxed::Box<T>`]
+//! [`Box::pin`]: alloc::boxed::Box::pin
+//! [`MaybeUninit::uninit()`]: core::mem::MaybeUninit::uninit
 
 #![no_std]
 #![cfg_attr(feature = "std", feature(new_uninit))]
