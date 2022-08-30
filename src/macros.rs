@@ -107,43 +107,56 @@ macro_rules! init {
     };
     // initialize a specific AllocablePlace using a single macro.
     (@$func:ident $(:: $(<$($args:ty),*$(,)?>::)? $path:ident)*!($var:ty $(, $($rest:tt)*)?)) => {
-        <$var as $crate::place::AllocablePlace>::allocate().map(move |var| {
-            $crate::init!(@@fully_init(var, ($func $(:: $(<$($args),*>::)? $path)*!) $(, $($rest)*)?))
-        }).map(<$var as $crate::place::AllocablePlace>::after_init)
+        match <$var as $crate::place::AllocablePlace>::allocate() {
+            Ok(mut var) => {
+                Ok($crate::init!(@@fully_init(var, ($func $(:: $(<$($args),*>::)? $path)*!) $(, $($rest)*)?)))
+            },
+            Err(e) => Err(e),
+        }.map(<$var as $crate::place::AllocablePlace>::after_init)
     };
     // initialize a specific AllocablePlace using a single macro with error propagation
     (@$func:ident $(:: $(<$($args:ty),*$(,)?>::)? $path:ident)*!($var:ty $(, $($rest:tt)*)?)?) => {
-        <$var as $crate::place::AllocablePlace>::allocate().map(move |var| {
-            $crate::init!(@@fully_init(var, err, ($func $(:: $(<$($args),*>::)? $path)*!) $(, $($rest)*)?))
-                .map(<$var as $crate::place::AllocablePlace>::after_init)
-        })
+        match <$var as $crate::place::AllocablePlace>::allocate() {
+            Ok(mut var) => {
+                $crate::init!(@@fully_init(var, err, ($func $(:: $(<$($args),*>::)? $path)*!) $(, $($rest)*)?))
+            },
+            Err(e) => Err(e),
+        }.map(<$var as $crate::place::AllocablePlace>::after_init)
     };
     // initialize a specific AllocablePlace using a single function.
     (@$func:ident $(:: $(<$($args:ty),*$(,)?>::)? $path:ident)*($var:ty $(, $($rest:tt)*)?)) => {
-        <$var as $crate::place::AllocablePlace>::allocate().map(move |var| {
-            $crate::init!(@@fully_init(var, ($func $(:: $(<$($args),*>::)? $path)*) $(, $($rest)*)?))
-        }).map(<$var as $crate::place::AllocablePlace>::after_init)
+        match <$var as $crate::place::AllocablePlace>::allocate() {
+            Ok(mut var) => {
+                Ok($crate::init!(@@fully_init(var, ($func $(:: $(<$($args),*>::)? $path)*) $(, $($rest)*)?)))
+            },
+            Err(e) => Err(e),
+        }.map(<$var as $crate::place::AllocablePlace>::after_init)
     };
     // initialize a specific AllocablePlace using a single function with error propagation
     (@$func:ident $(:: $(<$($args:ty),*$(,)?>::)? $path:ident)*($var:ty $(, $($rest:tt)*)?)?) => {
-        <$var as $crate::place::AllocablePlace>::allocate().map(move |var| {
-            $crate::init!(@@fully_init(var, err, ($func $(:: $(<$($args),*>::)? $path)*) $(, $($rest)*)?))
-                .map(<$var as $crate::place::AllocablePlace>::after_init)
-        })
+        match <$var as $crate::place::AllocablePlace>::allocate() {
+            Ok(mut var) => {
+                $crate::init!(@@fully_init(var, err, ($func $(:: $(<$($args),*>::)? $path)*) $(, $($rest)*)?))
+            },
+            Err(e) => Err(e),
+        }.map(<$var as $crate::place::AllocablePlace>::after_init)
     };
     // initialize a specific AllocablePlace manually (init each field).
     (@$var:ty => $struct:ident $(<$($generic:ty),*>)? { $($tail:tt)* }) => {
-        <$var as $crate::place::AllocablePlace>::allocate().map(move |mut var| {
-            fn no_warn<___T>(_: &mut ___T) {}
-            no_warn(&mut var);
-            $crate::init!(@@inner(var, _is_pinned, (), ($struct $(<$($generic),*>)?)) $($tail)*);
-            let res = unsafe {
-                // SAFETY: The pointee of `var` has been fully initialized, if this part is
-                // reachable and no compile error exist.
-                $crate::place::PartialInitPlace::___init(var)
-            };
-            <$var as $crate::place::AllocablePlace>::after_init(res)
-        })
+        match <$var as $crate::place::AllocablePlace>::allocate() {
+            Ok(mut var) => {
+                fn no_warn<___T>(_: &mut ___T) {}
+                no_warn(&mut var);
+                $crate::init!(@@inner(var, _is_pinned, (), ($struct $(<$($generic),*>)?)) $($tail)*);
+                let res = unsafe {
+                    // SAFETY: The pointee of `var` has been fully initialized, if this part is
+                    // reachable and no compile error exist.
+                    $crate::place::PartialInitPlace::___init(var)
+                };
+                Ok(res)
+            },
+            Err(e) => Err(e),
+        }.map(<$var as $crate::place::AllocablePlace>::after_init)
     };
 
     /*
@@ -191,6 +204,7 @@ macro_rules! init {
         let $field = $field;
         $crate::init!(@@inner($var, $pin, ($($inner)* $field: $crate::conjure(),), ($name $(<$($generic),*>)?)) $($tail)*);
     };
+
     // a function call initializing a single field, we cannot use the `path` meta-variable type,
     // because `(` is not allowed after that :(
     (@@inner($var:ident, $pin:ident, ($($inner:tt)*), ($name:ident $(<$($generic:ty),*>)?))
@@ -235,6 +249,56 @@ macro_rules! init {
         $crate::init!(@@init_call($var, $name $(<$($generic),*>)?, $field, field_place, (unsafe {
             // SAFETY: macro-caller guarantees this is sound
             $func $(:: $(<$($args),*>::)? $path)*(field_place $($rest)*).await }
+        ), $($binding)?));
+        $crate::init!(@@inner($var, $pin, ($($inner)* $field: $crate::conjure(),), ($name $(<$($generic),*>)?)) $($tail)*);
+    };
+
+    // now again the same patterns with `?`
+
+    // a function call initializing a single field with possible error.
+    // we cannot use the `path` meta-variable type, because `(` is not allowed after that :(
+    (@@inner($var:ident, $pin:ident, ($($inner:tt)*), ($name:ident $(<$($generic:ty),*>)?))
+        $(~let $binding:pat = )?$func:ident $(:: $(<$($args:ty),*$(,)?>::)? $path:ident)*(.$field:ident $($rest:tt)*)?;
+        $($tail:tt)*
+    ) => {
+        $crate::init!(@@init_call($var, $name $(<$($generic),*>)?, $field, field_place, ($func $(:: $(<$($args),*>::)? $path)*(field_place $($rest)*)?), $($binding)?));
+        $crate::init!(@@inner($var, $pin, ($($inner)* $field: $crate::conjure(),), ($name $(<$($generic),*>)?)) $($tail)*);
+    };
+    // an unsafe function initializing a single field.
+    (@@inner($var:ident, $pin:ident, ($($inner:tt)*), ($name:ident $(<$($generic:ty),*>)?))
+        $(~let $binding:pat = )?unsafe { $func:ident $(:: $(<$($args:ty),*$(,)?>::)? $path:ident)*(.$field:ident $($rest:tt)*) }?;
+        $($tail:tt)*
+    ) => {
+        $crate::init!(@@init_call($var, $name $(<$($generic),*>)?, $field, field_place, (unsafe {
+            // SAFETY: macro-caller guarantees this is sound
+            $func $(:: $(<$($args),*>::)? $path)*(field_place $($rest)*) }?
+        ), $($binding)?));
+        $crate::init!(@@inner($var $pin ($($inner)* $field: $crate::conjure(),) $name $(<$($generic),*>)?) $($tail)*);
+    };
+    // a macro call initializing a single field
+    (@@inner($var:ident, $pin:ident, ($($inner:tt)*), ($name:ident $(<$($generic:ty),*>)?))
+        $(~let $binding:pat = )?$func:ident $(:: $(<$($args:ty),*$(,)?>::)? $path:ident)*!(.$field:ident $($rest:tt)*)?;
+        $($tail:tt)*
+    ) => {
+        $crate::init!(@@init_call($var, $name $(<$($generic),*>)?, $field, field_place, ($func $(:: $(<$($args),*>::)? $path)*!(field_place $($rest)*)?), $($binding)?));
+        $crate::init!(@@inner($var, $pin, ($($inner)* $field: $crate::conjure(),), ($name $(<$($generic),*>)?)) $($tail)*);
+    };
+    // an async function call initializing a single field
+    (@@inner($var:ident, $pin:ident, ($($inner:tt)*), ($name:ident $(<$($generic:ty),*>)?))
+        $(~let $binding:pat = )?$func:ident $(:: $(<$($args:ty),*$(,)?>::)? $path:ident)*(.$field:ident $($rest:tt)*).await?;
+        $($tail:tt)*
+    ) => {
+        $crate::init!(@@init_call($var, $name $(<$($generic),*>)?, $field, field_place, ($func $(:: $(<$($args),*>::)? $path)*(field_place $($rest)*).await?), $($binding)?));
+        $crate::init!(@@inner($var, $pin, ($($inner)* $field: $crate::conjure(),), ($name $(<$($generic),*>)?)) $($tail)*);
+    };
+    // an unsafe async function call initializing a single field
+    (@@inner($var:ident, $pin:ident, ($($inner:tt)*), ($name:ident $(<$($generic:ty),*>)?))
+        $(~let $binding:pat = )? unsafe { $func:ident $(:: $(<$($args:ty),*$(,)?>::)? $path:ident)*(.$field:ident $($rest:tt)*).await }?;
+        $($tail:tt)*
+    ) => {
+        $crate::init!(@@init_call($var, $name $(<$($generic),*>)?, $field, field_place, (unsafe {
+            // SAFETY: macro-caller guarantees this is sound
+            $func $(:: $(<$($args),*>::)? $path)*(field_place $($rest)*).await }?
         ), $($binding)?));
         $crate::init!(@@inner($var, $pin, ($($inner)* $field: $crate::conjure(),), ($name $(<$($generic),*>)?)) $($tail)*);
     };

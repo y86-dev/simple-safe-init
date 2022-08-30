@@ -292,14 +292,60 @@
 //!     }
 //! }
 //!
-//!
-//! let buffers: Result<Pin<Box<Buffers>>, AllocError> =
-//!     init!(@Buffers::init(Pin<Box<Buffers>>)?).unwrap();
-//! let mut buffers = buffers.unwrap();
+//! let mut buffers: Pin<Box<Buffers>> =
+//!     init!(@Buffers::init(Pin<Box<Buffers>>)?)?;
 //! println!("{}", buffers.as_mut().big_buf_len());
+//! # Ok::<(), AllocError>(())
 //! ```
 //! So just add a `?` after the init function.
 //!
+//! The same syntax is also supported in the initializer:
+//!
+//! ```rust
+//! # #![feature(allocator_api, new_uninit)]
+//! # use core::{mem::MaybeUninit, pin::Pin};
+//! # use simple_safe_init::*;
+//! # use std::alloc::AllocError;
+//! # pin_data! {
+//! #     pub struct Buffers {
+//! #         big_buf: Box<[u8; 1024 * 1024 * 1024]>,
+//! #         #pin
+//! #         sml_buf: [u8; 1024],
+//! #     }
+//! # }
+//! # impl Buffers {
+//! #     pub fn init<G: Guard>(
+//! #         this: PinInitMe<'_, Self, G>,
+//! #     ) -> Result<InitProof<(), G>, AllocError> {
+//! #         Ok(init! { this => Self {
+//! #             let buf = Box::try_new_zeroed()?;
+//! #             let buf = unsafe {
+//! #                 // SAFETY: Buffer has been zeroed
+//! #                 buf.assume_init()
+//! #             };
+//! #             .big_buf = buf;
+//! #             .sml_buf = [0; 1024];
+//! #         }})
+//! #     }
+//! #     pub fn big_buf_len(self: Pin<&mut Self>) -> usize {
+//! #         self.big_buf.len()
+//! #     }
+//! # }
+//! pin_data! {
+//!     struct WithBufs {
+//!         #pin
+//!         a: Buffers,
+//!         #pin
+//!         b: Buffers,
+//!     }
+//! }
+//! fn make_with_bufs() -> Result<Pin<Box<WithBufs>>, AllocError> {
+//!     init! { @Pin<Box<WithBufs>> => WithBufs {
+//!         Buffers::init(.a)?;
+//!         Buffers::init(.b)?;
+//!     }}
+//! }
+//! ```
 //!
 //! # Advanced Topics
 //! ## Custom syntax list
@@ -318,13 +364,14 @@
 //!     // `$func` is an init function with the correct type for `$field`
 //!     // (pay attention to the right pin status), `$param` are arbitrary rust expressions
 //!     // and `$pat` is any rust pattern:
-//!     ~let $pat = unsafe { $func(.$field, $($param),*).await };
+//!     ~let $pat = unsafe { $func(.$field, $($param),*).await }?;
 //!     // The following parts are optional:
 //!     // - the binding with `$pat`,
 //!     // - the await (then the function should not be async),
-//!     // - the unsafe (then the function should not be unsafe).
+//!     // - the unsafe (then the function should not be unsafe),
+//!     // - the `?` (then the function should return a `Result<InitProof<(), G>, Error>`.
 //!     //
-//!     // They are listed below for completeness:
+//!     // With the exception of `?`, they are listed below for completeness:
 //!
 //!     // `$func` is an init function with the correct type for `$field`
 //!     // (pay attention to the right pin status) and `$param` are arbitrary rust expressions:
@@ -374,6 +421,7 @@
 //!
 //! You can also specify the type to avoid manual allocation:
 //! ```rust
+//! # #![feature(allocator_api)]
 //! # use core::{mem::MaybeUninit, pin::Pin, marker::PhantomPinned};
 //! # use simple_safe_init::*;
 //! # mod structs {
@@ -409,7 +457,8 @@
 //! #     }
 //! # }
 //! # use structs::MyPinnedStruct;
-//! let mut my_struct = init!(@MyPinnedStruct::init(Pin<Box<MyPinnedStruct>>, "Hello World".to_owned()));
+//! let mut my_struct = init!(@MyPinnedStruct::init(Pin<Box<MyPinnedStruct>>, "Hello World".to_owned()))?;
+//! # Ok::<(), std::alloc::AllocError>(())
 //! ```
 //!
 //!
@@ -465,9 +514,9 @@
 //! [`MaybeUninit::uninit()`]: core::mem::MaybeUninit::uninit
 
 #![no_std]
-#![cfg_attr(feature = "std", feature(new_uninit))]
-#![cfg_attr(feature = "std", feature(allocator_api))]
-#![cfg_attr(feature = "std", feature(get_mut_unchecked))]
+#![cfg_attr(feature = "alloc", feature(new_uninit))]
+#![cfg_attr(feature = "alloc", feature(allocator_api))]
+#![cfg_attr(feature = "alloc", feature(get_mut_unchecked))]
 #![feature(generic_associated_types, never_type)]
 #![cfg_attr(feature = "docsrs", feature(doc_cfg))]
 #![forbid(unsafe_op_in_unsafe_fn)]
@@ -475,14 +524,14 @@
 #![warn(rustdoc::missing_crate_level_docs)]
 #![deny(rustdoc::broken_intra_doc_links)]
 
-#[cfg(feature = "std")]
+#[cfg(feature = "alloc")]
 extern crate alloc;
 
 mod macros;
 pub mod place;
 // TODO change to docsrs
-#[cfg_attr(feature = "docsrs", doc(cfg(feature = "std")))]
-#[cfg(feature = "std")]
+#[cfg_attr(feature = "docsrs", doc(cfg(feature = "alloc")))]
+#[cfg(feature = "alloc")]
 pub mod unique;
 
 mod tests;

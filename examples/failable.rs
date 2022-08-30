@@ -1,6 +1,6 @@
 #![feature(allocator_api, new_uninit, never_type)]
 
-use core::{mem::MaybeUninit, pin::Pin};
+use core::pin::Pin;
 use simple_safe_init::*;
 use std::alloc::AllocError;
 
@@ -39,9 +39,9 @@ mod buf {
 
 use buf::*;
 
-fn main() {
-    let buffers: Result<Pin<Box<Buffers>>, AllocError> =
-        init!(@Buffers::init(Pin<Box<Buffers>>)?).unwrap();
+fn main() -> Result<(), AllocError> {
+    let buffers: Result<Pin<Box<Buffers>>, AllocError> = init!(@Buffers::init(Pin<Box<Buffers>>)?);
     let mut buffers = buffers.unwrap();
     println!("{}", buffers.as_mut().big_buf_len());
+    Ok(())
 }

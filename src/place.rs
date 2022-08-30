@@ -6,7 +6,7 @@
 //! implement.
 
 use crate::{Guard, InitMe, InitPointer, PinInitMe};
-#[cfg(feature = "std")]
+#[cfg(feature = "alloc")]
 use alloc::boxed::Box;
 use core::{cell::UnsafeCell, mem::MaybeUninit, pin::Pin};
 
@@ -14,8 +14,8 @@ macro_rules! cfg_std {
     ($($stuff:item)*) => {
         $(
             // TODO change to docsrs
-            #[cfg_attr(feature = "docsrs", doc(cfg(feature = "std")))]
-            #[cfg(feature = "std")]
+            #[cfg_attr(feature = "docsrs", doc(cfg(feature = "alloc")))]
+            #[cfg(feature = "alloc")]
             $stuff
         )*
     }
