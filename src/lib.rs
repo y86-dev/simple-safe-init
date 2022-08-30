@@ -253,6 +253,53 @@
 //! ```
 //! The return type then also requires you to handle any allocation errors that could occur.
 //!
+//! ## Error Propagation
+//!
+//! When you have initialization that can fail, for example you need to allocate a field, then you
+//! can use the following syntax:
+//!
+//! ```rust
+//! use core::{mem::MaybeUninit, pin::Pin};
+//! use simple_safe_init::*;
+//! use std::alloc::AllocError;
+//!
+//! pin_data! {
+//!     pub struct Buffers {
+//!         big_buf: Box<[u8; 1024 * 1024 * 1024]>,
+//!         #pin
+//!         sml_buf: [u8; 1024],
+//!     }
+//! }
+//!
+//! impl Buffers {
+//!     pub fn init<G: Guard>(
+//!         this: PinInitMe<'_, Self, G>,
+//!     ) -> Result<InitProof<(), G>, AllocError> {
+//!         Ok(init! { this => Self {
+//!             let buf = Box::try_new_zeroed()?;
+//!             let buf = unsafe {
+//!                 // SAFETY: Buffer has been zeroed
+//!                 buf.assume_init()
+//!             };
+//!             .big_buf = buf;
+//!             .sml_buf = [0; 1024];
+//!         }})
+//!     }
+//!
+//!     pub fn big_buf_len(self: Pin<&mut Self>) -> usize {
+//!         self.big_buf.len()
+//!     }
+//! }
+//!
+//!
+//! let buffers: Result<Pin<Box<Buffers>>, AllocError> =
+//!     init!(@Buffers::init(Pin<Box<MaybeUninit<Buffers>>>)?).unwrap();
+//! let mut buffers = buffers.unwrap();
+//! println!("{}", buffers.as_mut().big_buf_len());
+//! ```
+//! So just add a `?` after the init funcion.
+//!
+//!
 //! # Advanced Topics
 //! ## Custom syntax list
 //! There are two main ways of initializing with [`init!`]:
@@ -363,7 +410,6 @@
 //! let mut my_struct = init!(@MyPinnedStruct::init(Pin<Box<MaybeUninit<MyPinnedStruct>>>, "Hello World".to_owned()));
 //! my_struct.as_mut().print_info();
 //! ```
-//!
 //!
 //!
 //!
