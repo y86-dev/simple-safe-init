@@ -29,15 +29,26 @@ macro_rules! cfg_std {
 ///
 /// # Safety
 ///
-/// This trait requires that partially initialized values of type `Raw` can be stored in
-/// `Self` (mostly in [`MaybeUninit<T>`]). And initialized values of type `Raw` can be stored by `Init`.
+/// This trait requires that partially initialized values of type [`Self::Raw`] can be stored in
+/// `Self` (essentially in [`MaybeUninit<T>`]). And initialized values of type [`Self::Raw`] can be
+/// stored by [`Self::Init`].
 ///
 /// It only makes sense to implement this type for
 /// - direct memory locations (such as [`MaybeUninit<T>`]),
-/// - smart pointers with unique access to the pointee.
+/// - smart pointers with write access to the pointee.
 ///
 /// When implementing this type you need to be careful, as a faulty implementation can lead to UB
 /// at a later point in time.
+///
+/// # Implementing
+///
+/// Care is needed, when implementing this trait for a smart pointer that allows multiple actors to access the
+/// pointee at the same time. You will need to create a new type that only allows a single actor to
+/// access the memory, use that to initialize it and then convert it to the actual smart pointer.
+/// For this use-case, view the source code of [`UniqueArc<T>`] and [`UniqueRc<T>`].
+///
+/// [`UniqueArc<T>`]: crate::unique::UniqueArc
+/// [`UniqueRc<T>`]: crate::unique::UniqueRc
 pub unsafe trait PartialInitPlace {
     /// This is the type `Self` will become, when everything is fully initialized.
     type Init;
@@ -192,11 +203,18 @@ where
 /// Helper trait used to allocate places.
 ///
 /// Types marked with this trait can be allocated and initialized in one go using [`init!`].
+///
+/// [`init!`]: crate::init
 pub trait AllocablePlace {
     /// Error type that may occur when trying to allocate this type of place.
     type Error;
     /// The type of the alloced place
     type Alloced: PartialInitPlace + Sized;
+    /// The type [`<Self::Alloced as PartialInitPlace>::Init`] gets converted to after
+    /// initialization.
+    ///
+    /// [`<Self::Alloced as PartialInitPlace>::Init`]: PartialInitPlace::Init
+    type Final;
 
     /// Allocate a place of this kind.
     ///
@@ -205,6 +223,9 @@ pub trait AllocablePlace {
     /// This might fail when not enough memory of the specified kind is available.
     /// If it cannot fail, `Self::Error` should be `!` (the [never type](https://doc.rust-lang.org/reference/types/never.html)).
     fn allocate() -> Result<Self::Alloced, Self::Error>;
+
+    /// After initialization operation.
+    fn after_init(alloced: <Self::Alloced as PartialInitPlace>::Init) -> Self::Final;
 }
 
 impl<A: AllocablePlace> AllocablePlace for Pin<A>
@@ -213,9 +234,14 @@ where
 {
     type Error = A::Error;
     type Alloced = Pin<A::Alloced>;
+    type Final = <Self::Alloced as PartialInitPlace>::Init;
 
     fn allocate() -> Result<Self::Alloced, A::Error> {
         Ok(Pin::from(A::allocate()?))
+    }
+
+    fn after_init(alloced: <Self::Alloced as PartialInitPlace>::Init) -> Self::Final {
+        alloced
     }
 }
 
@@ -223,9 +249,14 @@ cfg_std! {
     impl<T> AllocablePlace for Box<T> {
         type Error = alloc::alloc::AllocError;
         type Alloced = Box<MaybeUninit<T>>;
+        type Final = Box<T>;
 
         fn allocate() -> Result<Self::Alloced, Self::Error> {
             Box::try_new_uninit()
+        }
+
+        fn after_init(alloced: <Self::Alloced as PartialInitPlace>::Init) -> Self::Final {
+            alloced
         }
     }
 }

@@ -109,24 +109,26 @@ macro_rules! init {
     (@$func:ident $(:: $(<$($args:ty),*$(,)?>::)? $path:ident)*!($var:ty $(, $($rest:tt)*)?)) => {
         <$var as $crate::place::AllocablePlace>::allocate().map(move |var| {
             $crate::init!(@@fully_init(var, ($func $(:: $(<$($args),*>::)? $path)*!) $(, $($rest)*)?))
-        })
+        }).map(<$var as $crate::place::AllocablePlace>::after_init)
     };
     // initialize a specific AllocablePlace using a single macro with error propagation
     (@$func:ident $(:: $(<$($args:ty),*$(,)?>::)? $path:ident)*!($var:ty $(, $($rest:tt)*)?)?) => {
         <$var as $crate::place::AllocablePlace>::allocate().map(move |var| {
             $crate::init!(@@fully_init(var, err, ($func $(:: $(<$($args),*>::)? $path)*!) $(, $($rest)*)?))
+                .map(<$var as $crate::place::AllocablePlace>::after_init)
         })
     };
     // initialize a specific AllocablePlace using a single function.
     (@$func:ident $(:: $(<$($args:ty),*$(,)?>::)? $path:ident)*($var:ty $(, $($rest:tt)*)?)) => {
         <$var as $crate::place::AllocablePlace>::allocate().map(move |var| {
-            //$crate::init!(@@fully_init(var, ($func $(:: $(<$($args),*>::)? $path)*) $(, $($rest)*)?))
-        })
+            $crate::init!(@@fully_init(var, ($func $(:: $(<$($args),*>::)? $path)*) $(, $($rest)*)?))
+        }).map(<$var as $crate::place::AllocablePlace>::after_init)
     };
     // initialize a specific AllocablePlace using a single function with error propagation
     (@$func:ident $(:: $(<$($args:ty),*$(,)?>::)? $path:ident)*($var:ty $(, $($rest:tt)*)?)?) => {
         <$var as $crate::place::AllocablePlace>::allocate().map(move |var| {
             $crate::init!(@@fully_init(var, err, ($func $(:: $(<$($args),*>::)? $path)*) $(, $($rest)*)?))
+                .map(<$var as $crate::place::AllocablePlace>::after_init)
         })
     };
     // initialize a specific AllocablePlace manually (init each field).
@@ -135,11 +137,12 @@ macro_rules! init {
             fn no_warn<___T>(_: &mut ___T) {}
             no_warn(&mut var);
             $crate::init!(@@inner(var, _is_pinned, (), ($struct $(<$($generic),*>)?)) $($tail)*);
-            unsafe {
+            let res = unsafe {
                 // SAFETY: The pointee of `var` has been fully initialized, if this part is
                 // reachable and no compile error exist.
                 $crate::place::PartialInitPlace::___init(var)
-            }
+            };
+            <$var as $crate::place::AllocablePlace>::after_init(res)
         })
     };
 
