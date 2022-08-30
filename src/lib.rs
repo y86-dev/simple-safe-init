@@ -298,7 +298,7 @@
 //! let mut buffers = buffers.unwrap();
 //! println!("{}", buffers.as_mut().big_buf_len());
 //! ```
-//! So just add a `?` after the init funcion.
+//! So just add a `?` after the init function.
 //!
 //!
 //! # Advanced Topics
@@ -323,7 +323,7 @@
 //!     // The following parts are optional:
 //!     // - the binding with `$pat`,
 //!     // - the await (then the function should not be async),
-//!     // - the unsafe (then the funcion should not be unsafe).
+//!     // - the unsafe (then the function should not be unsafe).
 //!     //
 //!     // They are listed below for completeness:
 //!
@@ -452,10 +452,10 @@
 //!
 //! ### Struct Initializer
 //!
-//! The macro cumulates all fields it initialized and then builds a struct initializer with the
+//! The macro accumulates all fields it initialized and then builds a struct initializer with the
 //! given fields. This is done in a closure that is not executed, so it is only type checked.
 //! This ensures that no field is initialized twice and none are forgotten, because it leverages
-//! the normal behaviour of the compiler. It also provides nice compile errors, because
+//! the normal behavior of the compiler. It also provides nice compile errors, because
 //! declarative macros work well with the error spans.
 //!
 //! [`MaybeUninit<T>`]: [`core::mem::MaybeUninit<T>`]
@@ -693,7 +693,7 @@ unsafe impl<'a, T: ?Sized, G: Guard> PartialInitPlace for InitMe<'a, T, G> {
 /// after initialization. If you do not need it to stay pinned, then use [`InitMe<T, G>`].
 ///
 /// Use [`init!`] to initialize the pointee.
-/// # Genric Arguments
+/// # Generic Arguments
 /// `T` is the type that this pointer points to and that needs to be initialized.
 /// `G` is a [`Guard`] parameter.
 pub struct PinInitMe<'a, T: ?Sized, G: Guard> {
@@ -974,7 +974,7 @@ impl<G: Guard> InitProof<(), G> {
 ///
 /// Only
 /// - ZST structs/
-/// - types that are not accesible globally/
+/// - types that are not accessible globally/
 /// - types that do not implement [`Copy`]/
 ///
 /// may implement this trait.

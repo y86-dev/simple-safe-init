@@ -51,7 +51,7 @@ pub unsafe trait PartialInitPlace {
         Self: 'a;
 
     #[doc = include_str!("macro_only.md")]
-    /// - `guard` is not accesible by unauthorized code.
+    /// - `guard` is not accessible by unauthorized code.
     ///
     /// # Implementing
     ///
@@ -202,7 +202,7 @@ impl<T> UninitPlace for MaybeUninit<T> {
 /// # Generic Arguments
 /// - `Uninit`: The storage type of the partially initialized data.
 pub trait AllocablePlace<Uninit: UninitPlace<Inner = Self::Inner>> {
-    /// Error type that may occurr when trying to allocate this type of place.
+    /// Error type that may occur when trying to allocate this type of place.
     type Error;
     /// The type of the alloced place
     type Alloced: PartialInitPlace + Sized;

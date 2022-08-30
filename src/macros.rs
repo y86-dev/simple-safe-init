@@ -558,7 +558,7 @@ macro_rules! stack_init {
     };
 }
 
-/// Declacre and initialize a static variable using a user-defined ctor implementation.
+/// Declare and initialize a static variable using a user-defined ctor implementation.
 ///
 /// You will need to specify a ctor macro that takes a single function
 /// (`unsafe extern "C" fn()`) as its only parameter. It will need to execute that function in the
@@ -568,7 +568,7 @@ macro_rules! stack_init {
 /// You need to supply a valid ctor macro, it needs to satisfy the following properties:
 /// - take a single parameter that is a path to a function with no parameters and C calling
 /// convention,
-/// - that function needs to be called within a static initializer, such that no accesses occurr to the
+/// - that function needs to be called within a static initializer, such that no accesses occur to the
 /// statics defined here.
 ///
 ///
