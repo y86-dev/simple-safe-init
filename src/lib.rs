@@ -245,7 +245,7 @@
 //!         println!("Hello from pinned: {}", self.msg);
 //!     }
 //! }
-//! let mut my_struct = init! { @Pin<Box<MaybeUninit<MyPinnedStruct>>> => MyPinnedStruct {
+//! let mut my_struct = init! { @Pin<Box<MyPinnedStruct>> => MyPinnedStruct {
 //!     .msg = "Hello World".to_owned();
 //!     ._p = PhantomPinned;
 //! }}.unwrap();
@@ -294,7 +294,7 @@
 //!
 //!
 //! let buffers: Result<Pin<Box<Buffers>>, AllocError> =
-//!     init!(@Buffers::init(Pin<Box<MaybeUninit<Buffers>>>)?).unwrap();
+//!     init!(@Buffers::init(Pin<Box<Buffers>>)?).unwrap();
 //! let mut buffers = buffers.unwrap();
 //! println!("{}", buffers.as_mut().big_buf_len());
 //! ```
@@ -362,7 +362,7 @@
 //! #     msg: String,
 //! #     _p: PhantomPinned,
 //! # }
-//! init! { @Pin<Box<MaybeUninit<MyPinnedStruct>>> => MyPinnedStruct {
+//! init! { @Pin<Box<MyPinnedStruct>> => MyPinnedStruct {
 //!     .msg = "Hello World".to_owned();
 //!     ._p = PhantomPinned;
 //! }}.unwrap();
@@ -410,7 +410,7 @@
 //! #     }
 //! # }
 //! # use structs::MyPinnedStruct;
-//! let mut my_struct = init!(@MyPinnedStruct::init(Pin<Box<MaybeUninit<MyPinnedStruct>>>, "Hello World".to_owned()));
+//! let mut my_struct = init!(@MyPinnedStruct::init(Pin<Box<MyPinnedStruct>>, "Hello World".to_owned()));
 //! ```
 //!
 //!
@@ -471,6 +471,10 @@
 #![feature(generic_associated_types, never_type)]
 #![cfg_attr(feature = "docsrs", feature(doc_cfg))]
 #![deny(unsafe_op_in_unsafe_fn)]
+#![warn(missing_docs)]
+#![warn(rustdoc::missing_crate_level_docs)]
+#![warn(rustdoc::missing_doc_code_examples)]
+
 #[cfg(feature = "std")]
 extern crate alloc;
 

@@ -187,10 +187,27 @@ where
 {
 }
 
-/// A [PartialInitPlace] that can be allocated without any extra parameters (it is fully
-/// uninitialized).
-pub trait AllocablePlace: Sized + PartialInitPlace {
+/// Marks types that can store partially initialized data.
+pub unsafe trait UninitPlace {
+    /// The data stored by `Self` that can be partially initialized.
+    type Inner;
+}
+
+unsafe impl<T> UninitPlace for MaybeUninit<T> {
+    type Inner = T;
+}
+
+/// Helper trait used to allocate places.
+///
+/// # Generic Arguments
+/// - `Uninit`: The storage type of the partially initialized data.
+pub trait AllocablePlace<Uninit: UninitPlace<Inner = Self::Inner>> {
+    /// Error type that may occurr when trying to allocate this type of place.
     type Error;
+    /// The type of the alloced place
+    type Alloced: PartialInitPlace + Sized;
+    /// The type that is stored inside of [`Self::Alloced`] via `Uninit`.
+    type Inner;
 
     /// Allocate a place of this kind.
     ///
@@ -198,47 +215,30 @@ pub trait AllocablePlace: Sized + PartialInitPlace {
     ///
     /// This might fail when not enough memory of the specified kind is available.
     /// If it cannot fail, `Self::Error` should be `!` (the [never type](https://doc.rust-lang.org/reference/types/never.html)).
-    fn allocate() -> Result<Self, Self::Error>;
+    fn allocate() -> Result<Self::Alloced, Self::Error>;
 }
 
-impl<T> AllocablePlace for MaybeUninit<T> {
-    type Error = !;
-
-    fn allocate() -> Result<Self, Self::Error> {
-        Ok(MaybeUninit::uninit())
-    }
-}
-
-impl<A: AllocablePlace> AllocablePlace for Pin<A>
+impl<U: UninitPlace<Inner = A::Inner>, A: AllocablePlace<U>> AllocablePlace<U> for Pin<A>
 where
-    Pin<A>: From<A> + PartialInitPlace,
+    Pin<A::Alloced>: From<A::Alloced> + PartialInitPlace,
 {
     type Error = A::Error;
+    type Alloced = Pin<A::Alloced>;
+    type Inner = A::Inner;
 
-    fn allocate() -> Result<Self, A::Error> {
+    fn allocate() -> Result<Self::Alloced, A::Error> {
         Ok(Pin::from(A::allocate()?))
     }
 }
 
 cfg_std! {
-    /// An allocation error occurring when trying to allocate [`Box<A>`] where `A:` [`AllocablePlace`].
-    #[derive(Debug)]
-    pub enum BoxAllocErr<E> {
-        Nested(E),
-        BoxAlloc,
-    }
+    impl<T> AllocablePlace<MaybeUninit<T>> for Box<T> {
+        type Error = alloc::alloc::AllocError;
+        type Alloced = Box<MaybeUninit<T>>;
+        type Inner = T;
 
-    impl<A: AllocablePlace> AllocablePlace for Box<A>
-    where
-        Box<A>: PartialInitPlace,
-    {
-        type Error = BoxAllocErr<A::Error>;
-
-        fn allocate() -> Result<Self, Self::Error> {
-            Ok(
-                Box::try_new(A::allocate().map_err(|e| BoxAllocErr::Nested(e))?)
-                    .map_err(|_| BoxAllocErr::BoxAlloc)?,
-            )
+        fn allocate() -> Result<Self::Alloced, Self::Error> {
+            Box::try_new_uninit()
         }
     }
 }
