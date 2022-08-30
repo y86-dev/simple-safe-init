@@ -88,19 +88,6 @@ macro_rules! init {
             }
         }
     };
-    // initialize a specific AllocablePlace manually (init each field).
-    (@$var:ty => $struct:ident $(<$($generic:ty),*>)? { $($tail:tt)* }) => {
-        <$var as $crate::place::AllocablePlace>::allocate().map(move |mut var| {
-            fn no_warn<___T>(_: &mut ___T) {}
-            no_warn(&mut var);
-            $crate::init!(@@inner(var, _is_pinned, (), ($struct $(<$($generic),*>)?)) $($tail)*);
-            unsafe {
-                // SAFETY: The pointee of `var` has been fully initialized, if this part is
-                // reachable and no compile error exist.
-                $crate::place::PartialInitPlace::___init(var)
-            }
-        })
-    };
 
     // initialize an arbitrary expression using a single macro.
     ($func:ident $(:: $(<$($args:ty),*$(,)?>::)? $path:ident)*!($var:expr $(, $($rest:tt)*)?)) => {
@@ -140,6 +127,19 @@ macro_rules! init {
     (@$func:ident $(:: $(<$($args:ty),*$(,)?>::)? $path:ident)*($var:ty $(, $($rest:tt)*)?)?) => {
         <$var as $crate::place::AllocablePlace>::allocate().map(move |var| {
             $crate::init!(@@fully_init(var, err, ($func $(:: $(<$($args),*>::)? $path)*) $(, $($rest)*)?))
+        })
+    };
+    // initialize a specific AllocablePlace manually (init each field).
+    (@$var:ty => $struct:ident $(<$($generic:ty),*>)? { $($tail:tt)* }) => {
+        <$var as $crate::place::AllocablePlace>::allocate().map(move |mut var| {
+            fn no_warn<___T>(_: &mut ___T) {}
+            no_warn(&mut var);
+            $crate::init!(@@inner(var, _is_pinned, (), ($struct $(<$($generic),*>)?)) $($tail)*);
+            unsafe {
+                // SAFETY: The pointee of `var` has been fully initialized, if this part is
+                // reachable and no compile error exist.
+                $crate::place::PartialInitPlace::___init(var)
+            }
         })
     };
 

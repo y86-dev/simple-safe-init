@@ -259,6 +259,7 @@
 //! can use the following syntax:
 //!
 //! ```rust
+//! #![feature(allocator_api, new_uninit)]
 //! use core::{mem::MaybeUninit, pin::Pin};
 //! use simple_safe_init::*;
 //! use std::alloc::AllocError;
@@ -355,6 +356,8 @@
 //!
 //! You can use `@$type` for types implementing the [`AllocablePlace`] trait to speed up the allocation:
 //! ```rust
+//! # use core::{mem::MaybeUninit, marker::PhantomPinned, pin::Pin};
+//! # use simple_safe_init::*;
 //! # struct MyPinnedStruct {
 //! #     msg: String,
 //! #     _p: PhantomPinned,
@@ -362,7 +365,7 @@
 //! init! { @Pin<Box<MaybeUninit<MyPinnedStruct>>> => MyPinnedStruct {
 //!     .msg = "Hello World".to_owned();
 //!     ._p = PhantomPinned;
-//! }}
+//! }}.unwrap();
 //! ```
 //!
 //!
@@ -408,7 +411,6 @@
 //! # }
 //! # use structs::MyPinnedStruct;
 //! let mut my_struct = init!(@MyPinnedStruct::init(Pin<Box<MaybeUninit<MyPinnedStruct>>>, "Hello World".to_owned()));
-//! my_struct.as_mut().print_info();
 //! ```
 //!
 //!
