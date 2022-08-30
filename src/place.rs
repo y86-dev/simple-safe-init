@@ -188,12 +188,12 @@ where
 }
 
 /// Marks types that can store partially initialized data.
-pub unsafe trait UninitPlace {
+pub trait UninitPlace {
     /// The data stored by `Self` that can be partially initialized.
     type Inner;
 }
 
-unsafe impl<T> UninitPlace for MaybeUninit<T> {
+impl<T> UninitPlace for MaybeUninit<T> {
     type Inner = T;
 }
 
@@ -274,7 +274,7 @@ impl<T> ___StaticInit<T> {
         unsafe {
             // SAFETY: the pointer is valid and not misused, as this is a macro
             // only function
-            (&mut *self.inner.get()).as_mut_ptr()
+            (*self.inner.get()).as_mut_ptr()
         }
     }
 }
@@ -285,7 +285,7 @@ impl<T> core::ops::Deref for ___StaticInit<T> {
     fn deref(&self) -> &Self::Target {
         unsafe {
             // SAFETY: our type invariants dictates that our value has been initialized.
-            (&*self.inner.get()).assume_init_ref()
+            (*self.inner.get()).assume_init_ref()
         }
     }
 }

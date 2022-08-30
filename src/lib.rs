@@ -525,6 +525,7 @@ pub struct InitMe<'a, T: ?Sized, G: Guard> {
     ptr: *mut T,
     // We need the correct variance, so we only accept the exact type for `G`. `T` and `'a` should
     // behave like `&'a mut T`.
+    #[allow(clippy::type_complexity)]
     _phantom: PhantomData<(&'a mut T, fn(G) -> G)>,
 }
 
@@ -699,6 +700,7 @@ pub struct PinInitMe<'a, T: ?Sized, G: Guard> {
     ptr: *mut T,
     // We need the correct variance, so we only accept the exact type for `G`. `T` and `'a` should
     // behave like `&'a mut T`.
+    #[allow(clippy::type_complexity)]
     _phantom: PhantomData<(&'a mut T, fn(G) -> G)>,
 }
 
