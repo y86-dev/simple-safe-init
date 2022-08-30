@@ -101,25 +101,46 @@ macro_rules! init {
             }
         })
     };
-    // initialize a specific AllocablePlace using a single macro.
-    ($func:ident $(:: $(<$($args:ty),*$(,)?>::)? $path:ident)*!(@$var:ty $(, $($rest:tt)*)?)) => {
-        <$var as $crate::place::AllocablePlace>::allocate().map(move |var| {
-            $crate::init!(@@fully_init(var, ($func $(:: $(<$($args),*>::)? $path)*!) $(, $($rest)*)?))
-        })
-    };
-    // initialize a specific AllocablePlace using a single function.
-    ($func:ident $(:: $(<$($args:ty),*$(,)?>::)? $path:ident)*(@$var:ty $(, $($rest:tt)*)?)) => {
-        <$var as $crate::place::AllocablePlace>::allocate().map(move |var| {
-            $crate::init!(@@fully_init(var, ($func $(:: $(<$($args),*>::)? $path)*) $(, $($rest)*)?))
-        })
-    };
+
     // initialize an arbitrary expression using a single macro.
     ($func:ident $(:: $(<$($args:ty),*$(,)?>::)? $path:ident)*!($var:expr $(, $($rest:tt)*)?)) => {
         $crate::init!(@@fully_init($var, ($func $(:: $(<$($args),*>::)? $path)*!) $(, $($rest)*)?))
     };
+    // initialize an arbitrary expression using a single macro with error propagation.
+    ($func:ident $(:: $(<$($args:ty),*$(,)?>::)? $path:ident)*!($var:expr $(, $($rest:tt)*)?)?) => {
+        $crate::init!(@@fully_init($var, err, ($func $(:: $(<$($args),*>::)? $path)*!) $(, $($rest)*)?))
+    };
     // initialize an arbitrary expression using a single function.
     ($func:ident $(:: $(<$($args:ty),*$(,)?>::)? $path:ident)*($var:expr $(, $($rest:tt)*)?)) => {
         $crate::init!(@@fully_init($var, ($func $(:: $(<$($args),*>::)? $path)*) $(, $($rest)*)?))
+    };
+    // initialize an arbitrary expression using a single function with error propagation.
+    ($func:ident $(:: $(<$($args:ty),*$(,)?>::)? $path:ident)*($var:expr $(, $($rest:tt)*)?)?) => {
+        $crate::init!(@@fully_init($var, err, ($func $(:: $(<$($args),*>::)? $path)*) $(, $($rest)*)?))
+    };
+    // initialize a specific AllocablePlace using a single macro.
+    (@$func:ident $(:: $(<$($args:ty),*$(,)?>::)? $path:ident)*!($var:ty $(, $($rest:tt)*)?)) => {
+        <$var as $crate::place::AllocablePlace>::allocate().map(move |var| {
+            $crate::init!(@@fully_init(var, ($func $(:: $(<$($args),*>::)? $path)*!) $(, $($rest)*)?))
+        })
+    };
+    // initialize a specific AllocablePlace using a single macro with error propagation
+    (@$func:ident $(:: $(<$($args:ty),*$(,)?>::)? $path:ident)*!($var:ty $(, $($rest:tt)*)?)?) => {
+        <$var as $crate::place::AllocablePlace>::allocate().map(move |var| {
+            $crate::init!(@@fully_init(var, err, ($func $(:: $(<$($args),*>::)? $path)*!) $(, $($rest)*)?))
+        })
+    };
+    // initialize a specific AllocablePlace using a single function.
+    (@$func:ident $(:: $(<$($args:ty),*$(,)?>::)? $path:ident)*($var:ty $(, $($rest:tt)*)?)) => {
+        <$var as $crate::place::AllocablePlace>::allocate().map(move |var| {
+            //$crate::init!(@@fully_init(var, ($func $(:: $(<$($args),*>::)? $path)*) $(, $($rest)*)?))
+        })
+    };
+    // initialize a specific AllocablePlace using a single function with error propagation
+    (@$func:ident $(:: $(<$($args:ty),*$(,)?>::)? $path:ident)*($var:ty $(, $($rest:tt)*)?)?) => {
+        <$var as $crate::place::AllocablePlace>::allocate().map(move |var| {
+            $crate::init!(@@fully_init(var, err, ($func $(:: $(<$($args),*>::)? $path)*) $(, $($rest)*)?))
+        })
     };
 
     /*
@@ -298,6 +319,40 @@ macro_rules! init {
                     // SAFETY: The pointee was initialized by the function above and the InitProof
                     // was valid.
                     $crate::place::PartialInitPlace::___init(var)
+                }
+            }
+        }
+    };
+    // generalized single function/macro init helper with error propagation
+    (@@fully_init($var:expr, err, ($($init:tt)*)$(, $($rest:tt)*)?)) => {
+        match $var {
+            mut var => {
+                {
+                    // this type is used as the guard parameter on `(Pin)InitMe` and ensures that we
+                    // definitely initialize the specified field. we scope it here, to ensure no usage
+                    // outside of this macro.
+                    #[doc(hidden)]
+                    struct ___LocalGuard;
+                    unsafe impl $crate::Guard for ___LocalGuard {}
+                    let value = unsafe {
+                        // SAFETY: we own `var` and assume it is initialized below
+                        $crate::place::PartialInitPlace::___init_me(&mut var, ___LocalGuard)
+                    };
+                    let guard = ___LocalGuard;
+                    {
+                        // shadow the type def
+                        #[doc(hidden)]
+                        struct ___LocalGuard;
+                        // unwrap the value produced by the function immediately, do not give access to the
+                        // raw InitProof. Validate using the guard, if guard would be used a second time,
+                        // then a move error would occur.
+                        let () = $crate::InitProof::___unwrap($($init)*(value $(, $($rest)*)?)?, guard);
+                    }
+                }
+                unsafe {
+                    // SAFETY: The pointee was initialized by the function above and the InitProof
+                    // was valid.
+                    Ok($crate::place::PartialInitPlace::___init(var))
                 }
             }
         }

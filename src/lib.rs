@@ -262,7 +262,7 @@
 //!
 //! The initializer allows the following custom syntax while initializing `$field` (each line is
 //! its own way of initializing `$field`):
-//! ```rust,no_run
+//! ```rust,ignore
 //! init! { val => Struct {
 //!     // `expr` is any rust expression:
 //!     .$field = $expr;
@@ -306,14 +306,65 @@
 //! }};
 //! ```
 //!
+//! You can use `@$type` for types implementing the [`AllocablePlace`] trait to speed up the allocation:
+//! ```rust
+//! # struct MyPinnedStruct {
+//! #     msg: String,
+//! #     _p: PhantomPinned,
+//! # }
+//! init! { @Pin<Box<MaybeUninit<MyPinnedStruct>>> => MyPinnedStruct {
+//!     .msg = "Hello World".to_owned();
+//!     ._p = PhantomPinned;
+//! }}
+//! ```
+//!
 //!
 //! ### Single init function/macro
 //! This way you will provide a single function or macro initializing the whole struct at once. For
 //! this to work you do not need to have access to the fields.
-//! ###
 //!
-//! In both cases you can use `@$type` instead of an expression having that type. It needs to
-//! implement the [`AllocablePlace`] trait which dictates how it is allocated.
+//! You can also specify the type to avoid manual allocation:
+//! ```rust
+//! # use core::{mem::MaybeUninit, pin::Pin, marker::PhantomPinned};
+//! # use simple_safe_init::*;
+//! # mod structs {
+//! #     use core::{mem::MaybeUninit, pin::Pin, marker::PhantomPinned};
+//! #     use simple_safe_init::*;
+//! #     pub struct MyPinnedStruct {
+//! #         msg: String,
+//! #         // this will be our field that depends upon the pinning
+//! #         my_addr: usize,
+//! #         _p: PhantomPinned,
+//! #     }
+//! #     impl MyPinnedStruct {
+//! #         // a method that only works, if we are pinned
+//! #         pub fn print_info(self: Pin<&mut Self>) {
+//! #             println!("'{}' says MyPinnedStruct at {:X}", self.msg, self.my_addr);
+//! #         }
+//! #         // this is an init function, it takes a `PinInitMe` as its first
+//! #         // argument and returns an `InitProof` verifying the initialization.
+//! #         // The generic argument `G` is called the guard type, it is needed to ensure soundness
+//! #         // of the library.
+//! #         //
+//! #         // you can have any number of additional arguments
+//! #         pub fn init<G: Guard>(mut this: PinInitMe<'_, Self, G>, msg: String) -> InitProof<(), G> {
+//! #             // we still need the address for this example
+//! #             let addr = this.as_mut_ptr() as usize;
+//! #             // we still use the same syntax here!
+//! #             init! { this => Self {
+//! #                 ._p = PhantomPinned;
+//! #                 .msg = msg;
+//! #                 .my_addr = addr;
+//! #             }}
+//! #         }
+//! #     }
+//! # }
+//! # use structs::MyPinnedStruct;
+//! let mut my_struct = init!(@MyPinnedStruct::init(Pin<Box<MaybeUninit<MyPinnedStruct>>>, "Hello World".to_owned()));
+//! my_struct.as_mut().print_info();
+//! ```
+//!
+//!
 //!
 //!
 //! ## Smart Pointer Support
