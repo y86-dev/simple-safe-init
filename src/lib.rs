@@ -319,7 +319,6 @@
 //!     // (pay attention to the right pin status), `$param` are arbitrary rust expressions
 //!     // and `$pat` is any rust pattern:
 //!     ~let $pat = unsafe { $func(.$field, $($param),*).await };
-//!
 //!     // The following parts are optional:
 //!     // - the binding with `$pat`,
 //!     // - the await (then the function should not be async),
@@ -473,7 +472,6 @@
 #![deny(unsafe_op_in_unsafe_fn)]
 #![warn(missing_docs)]
 #![warn(rustdoc::missing_crate_level_docs)]
-#![warn(rustdoc::missing_doc_code_examples)]
 
 #[cfg(feature = "std")]
 extern crate alloc;

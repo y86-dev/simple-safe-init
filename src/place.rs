@@ -143,6 +143,7 @@ cfg_std! {
         where
             Self: 'a
         ;
+
         unsafe fn ___init(this: Self) -> Self::Init {
             // SAFETY: `T` has been initialized
             unsafe { this.assume_init() }
@@ -167,6 +168,7 @@ where
     where
         Self: 'a
     ;
+
     unsafe fn ___init(this: Self) -> Self::Init {
         // SAFETY: P::___init will not change the address of the pointer, so we can re-pin the
         // returned smart pointer (it is a pointer, because it implements Deref)
@@ -191,17 +193,21 @@ where
 pub trait UninitPlace {
     /// The data stored by `Self` that can be partially initialized.
     type Inner;
+
+    /// Create uninitialized data.
+    fn uninit() -> Self;
 }
 
 impl<T> UninitPlace for MaybeUninit<T> {
     type Inner = T;
+
+    fn uninit() -> Self {
+        MaybeUninit::uninit()
+    }
 }
 
 /// Helper trait used to allocate places.
-///
-/// # Generic Arguments
-/// - `Uninit`: The storage type of the partially initialized data.
-pub trait AllocablePlace<Uninit: UninitPlace<Inner = Self::Inner>> {
+pub trait AllocablePlace {
     /// Error type that may occur when trying to allocate this type of place.
     type Error;
     /// The type of the alloced place
@@ -218,7 +224,7 @@ pub trait AllocablePlace<Uninit: UninitPlace<Inner = Self::Inner>> {
     fn allocate() -> Result<Self::Alloced, Self::Error>;
 }
 
-impl<U: UninitPlace<Inner = A::Inner>, A: AllocablePlace<U>> AllocablePlace<U> for Pin<A>
+impl<A: AllocablePlace> AllocablePlace for Pin<A>
 where
     Pin<A::Alloced>: From<A::Alloced> + PartialInitPlace,
 {
@@ -232,7 +238,7 @@ where
 }
 
 cfg_std! {
-    impl<T> AllocablePlace<MaybeUninit<T>> for Box<T> {
+    impl<T> AllocablePlace for Box<T> {
         type Error = alloc::alloc::AllocError;
         type Alloced = Box<MaybeUninit<T>>;
         type Inner = T;

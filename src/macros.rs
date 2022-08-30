@@ -107,31 +107,31 @@ macro_rules! init {
     };
     // initialize a specific AllocablePlace using a single macro.
     (@$func:ident $(:: $(<$($args:ty),*$(,)?>::)? $path:ident)*!($var:ty $(, $($rest:tt)*)?)) => {
-        <$var as $crate::place::AllocablePlace<::core::mem::MaybeUninit<_>>>::allocate().map(move |var| {
+        <$var as $crate::place::AllocablePlace>::allocate().map(move |var| {
             $crate::init!(@@fully_init(var, ($func $(:: $(<$($args),*>::)? $path)*!) $(, $($rest)*)?))
         })
     };
     // initialize a specific AllocablePlace using a single macro with error propagation
     (@$func:ident $(:: $(<$($args:ty),*$(,)?>::)? $path:ident)*!($var:ty $(, $($rest:tt)*)?)?) => {
-        <$var as $crate::place::AllocablePlace<::core::mem::MaybeUninit<_>>>::allocate().map(move |var| {
+        <$var as $crate::place::AllocablePlace>::allocate().map(move |var| {
             $crate::init!(@@fully_init(var, err, ($func $(:: $(<$($args),*>::)? $path)*!) $(, $($rest)*)?))
         })
     };
     // initialize a specific AllocablePlace using a single function.
     (@$func:ident $(:: $(<$($args:ty),*$(,)?>::)? $path:ident)*($var:ty $(, $($rest:tt)*)?)) => {
-        <$var as $crate::place::AllocablePlace<::core::mem::MaybeUninit<_>>>::allocate().map(move |var| {
+        <$var as $crate::place::AllocablePlace>::allocate().map(move |var| {
             //$crate::init!(@@fully_init(var, ($func $(:: $(<$($args),*>::)? $path)*) $(, $($rest)*)?))
         })
     };
     // initialize a specific AllocablePlace using a single function with error propagation
     (@$func:ident $(:: $(<$($args:ty),*$(,)?>::)? $path:ident)*($var:ty $(, $($rest:tt)*)?)?) => {
-        <$var as $crate::place::AllocablePlace<::core::mem::MaybeUninit<_>>>::allocate().map(move |var| {
+        <$var as $crate::place::AllocablePlace>::allocate().map(move |var| {
             $crate::init!(@@fully_init(var, err, ($func $(:: $(<$($args),*>::)? $path)*) $(, $($rest)*)?))
         })
     };
     // initialize a specific AllocablePlace manually (init each field).
     (@$var:ty => $struct:ident $(<$($generic:ty),*>)? { $($tail:tt)* }) => {
-        <$var as $crate::place::AllocablePlace<::core::mem::MaybeUninit<_>>>::allocate().map(move |mut var| {
+        <$var as $crate::place::AllocablePlace>::allocate().map(move |mut var| {
             fn no_warn<___T>(_: &mut ___T) {}
             no_warn(&mut var);
             $crate::init!(@@inner(var, _is_pinned, (), ($struct $(<$($generic),*>)?)) $($tail)*);
