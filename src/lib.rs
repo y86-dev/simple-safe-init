@@ -467,17 +467,23 @@
 #![no_std]
 #![cfg_attr(feature = "std", feature(new_uninit))]
 #![cfg_attr(feature = "std", feature(allocator_api))]
+#![cfg_attr(feature = "std", feature(get_mut_unchecked))]
 #![feature(generic_associated_types, never_type)]
 #![cfg_attr(feature = "docsrs", feature(doc_cfg))]
-#![deny(unsafe_op_in_unsafe_fn)]
+#![forbid(unsafe_op_in_unsafe_fn)]
 #![warn(missing_docs)]
 #![warn(rustdoc::missing_crate_level_docs)]
+#![deny(rustdoc::broken_intra_doc_links)]
 
 #[cfg(feature = "std")]
 extern crate alloc;
 
 mod macros;
 pub mod place;
+// TODO change to docsrs
+#[cfg_attr(feature = "docsrs", doc(cfg(feature = "std")))]
+#[cfg(feature = "std")]
+pub mod unique;
 
 mod tests;
 
