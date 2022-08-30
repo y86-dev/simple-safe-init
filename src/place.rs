@@ -189,31 +189,14 @@ where
 {
 }
 
-/// Marks types that can store partially initialized data.
-pub trait UninitPlace {
-    /// The data stored by `Self` that can be partially initialized.
-    type Inner;
-
-    /// Create uninitialized data.
-    fn uninit() -> Self;
-}
-
-impl<T> UninitPlace for MaybeUninit<T> {
-    type Inner = T;
-
-    fn uninit() -> Self {
-        MaybeUninit::uninit()
-    }
-}
-
 /// Helper trait used to allocate places.
+///
+/// Types marked with this trait can be allocated and initialized in one go using [`init!`].
 pub trait AllocablePlace {
     /// Error type that may occur when trying to allocate this type of place.
     type Error;
     /// The type of the alloced place
     type Alloced: PartialInitPlace + Sized;
-    /// The type that is stored inside of [`Self::Alloced`] via `Uninit`.
-    type Inner;
 
     /// Allocate a place of this kind.
     ///
@@ -230,7 +213,6 @@ where
 {
     type Error = A::Error;
     type Alloced = Pin<A::Alloced>;
-    type Inner = A::Inner;
 
     fn allocate() -> Result<Self::Alloced, A::Error> {
         Ok(Pin::from(A::allocate()?))
@@ -241,7 +223,6 @@ cfg_std! {
     impl<T> AllocablePlace for Box<T> {
         type Error = alloc::alloc::AllocError;
         type Alloced = Box<MaybeUninit<T>>;
-        type Inner = T;
 
         fn allocate() -> Result<Self::Alloced, Self::Error> {
             Box::try_new_uninit()
