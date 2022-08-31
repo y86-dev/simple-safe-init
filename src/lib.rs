@@ -339,12 +339,11 @@
 //!         b: Buffers,
 //!     }
 //! }
-//! fn make_with_bufs() -> Result<Pin<Box<WithBufs>>, AllocError> {
-//!     init! { @Pin<Box<WithBufs>> => WithBufs {
-//!         Buffers::init(.a)?;
-//!         Buffers::init(.b)?;
-//!     }}
-//! }
+//! init! { @Pin<Box<WithBufs>> => WithBufs {
+//!     Buffers::init(.a)?;
+//!     Buffers::init(.b)?;
+//! }};
+//! # Ok::<(), std::alloc::AllocError>(())
 //! ```
 //!
 //! # Advanced Topics
