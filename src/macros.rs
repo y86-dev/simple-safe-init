@@ -3,7 +3,7 @@
 /// Take a look at the [introduction on the main page]. Here you can find some bigger and more
 /// comprehensive examples.
 ///
-/// [introduction on the main page]: crate
+/// [introduction on the main page]: super
 ///
 /// ```rust,no_run
 /// use simple_safe_init::*;

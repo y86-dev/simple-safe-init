@@ -4,31 +4,31 @@
 //!
 //! Readers are expected to know what [pinning](https://doc.rust-lang.org/std/pin/index.html) is.
 //!
-//! There are some macro only types, functions and other items. They begin with `___` triple
-//! underscores and should not be used. The only exception is, if you intend to extend this library.
+//! There are some macro-only types, functions and other items. They begin with `___` triple
+//! underscores and should not be used. The only exception is if you intend to extend this library.
 //!
 //! # Getting Started
-//! Suppose you have a struct that you want to initialize while it is pinned. For Example:
+//! Suppose you have a struct that you want to initialize while it is pinned. For example:
 //! ```rust
 //! use core::{mem::MaybeUninit, pin::Pin, marker::PhantomPinned};
 //! use simple_safe_init::*;
 //!
 //! struct SelfReferentialStruct {
 //!     msg: String,
-//!     // this will be our field that depends upon the pinning
+//!     // this it the field that depends upon the pinning
 //!     my_addr: *const SelfReferentialStruct,
 //!     _p: PhantomPinned,
 //! }
 //!
 //! impl SelfReferentialStruct {
-//!     // a method that only works, if we are pinned
+//!     // `self` needs to be pinned for this function
 //!     pub fn print_info(self: Pin<&mut Self>) {
 //!         println!("'{}' says SelfReferentialStruct at {:p}", self.msg, self.my_addr);
 //!     }
 //! }
 //! ```
-//! In order to initialize this struct, we need the address of the struct itself! But we only can
-//! have the address, if we have pinned the struct. Thus we need to first pin an uninitialized
+//! To initialize this struct we need the address of the struct itself! But we can only
+//! know the address, if we have pinned the struct. Thus we need to first pin an uninitialized
 //! version of the struct and then initialize it:
 //! ```rust
 //! # use core::{mem::MaybeUninit, pin::Pin, marker::PhantomPinned};
@@ -57,20 +57,20 @@
 //! my_struct.as_mut().print_info();
 //! ```
 //! The [`init!`] macro takes the value you want to initialize, its type and an initializer.
-//! Within the initializer you can use arbitrary rust statements. To initialize there are a couple
-//! of special statements with custom syntax. One of them is: `.$field = $expr;` it initializes the field
+//! Within the initializer you can use arbitrary rust statements. [`init!`] supports a couple of
+//! special statements with custom syntax. One of them is: `.$field = $expr;` it initializes the field
 //! with the given expression. See [here](#custom-syntax-list) for a complete list of the custom syntax.
 //!
 //! All of this without writing unsafe code ourselves and guarantees that you have not forgotten
-//! anything. A compile error is emitted, if
+//! anything. A compile error is emitted if
 //! - a field is missing,
 //! - a field is initialized multiple times.
 //!
 //!
 //! ## What about encapsulation?
-//! The macro relies on the caller having access to all of the structs fields.
+//! The macro relies on the caller having access to all of the struct's fields.
 //! When you want your struct fields to remain private, but you still need pinned initialization,
-//! then you can delegate the initialization to a custom init function:
+//! then you can delegate the initialization to a custom init-function:
 //! ```rust
 //! use core::{mem::MaybeUninit, pin::Pin, marker::PhantomPinned};
 //! use simple_safe_init::*;
@@ -114,16 +114,19 @@
 //! use structs::MyPinnedStruct;
 //!
 //! let my_struct = Box::pin(MaybeUninit::uninit());
-//! // now we cannot use the code from before, because the fields of the struct are private...
-//! // but we declared the init function earlier, so we just use that:
+//! // we cannot use the code from before, because the fields of the struct are private...
+//! // but we can use the init function defined above:
 //! let mut my_struct = init!(MyPinnedStruct::init(my_struct, "Hello World".to_owned()));
 //! my_struct.as_mut().print_info();
 //! ```
 //! See [`Guard`] to understand why the type parameter for the `init()` function is needed.
 //!
-//! When using [`init!`] with an init-function, then you can only use a single init-function, because
-//! it already fully initializes the struct. Just supply the allocated uninitialized memory for the
-//! struct as the first parameter.
+//! An init-function always initializes a complete value. So you can only specify a single init-function
+//! to initialize a struct. As an author of such a struct, you should consider all the different
+//! ways users might want to initialize your struct by.
+//!
+//! Init-functions always take the value they initialize as the first argument.
+//!
 //!
 //! ## Nested types
 //!
@@ -175,20 +178,21 @@
 //!
 //! ## Macro initialization
 //!
-//! You can also use init-macros, they have a similar syntax as the init-functions. The first thing
-//! is an expression evaluating to [`InitMe<T, G>`] or [`PinInitMe<T, G>`]. After that a comma is expected, if
-//! more input is passed to the macro. No further restrictions exist.
+//! You can also use init-macros, their syntax is similar to the init-functions. An init-macro
+//! needs to parse an expression as the first parameter that evaluates to [`InitMe<T, G>`] or
+//! [`PinInitMe<T, G>`]. After that a comma is expected if more input is passed to the macro.
+//! No further restrictions exist.
 //!
 //! Here is an example of an init-macro:
 //! ```rust
 //! use core::{mem::MaybeUninit, pin::Pin, marker::PhantomPinned};
 //! use simple_safe_init::*;
 //!
-//! // we also need to tell the macro what fields are structurally pinned.
+//! // we need to tell the macro which fields are structurally pinned.
 //! pin_data! {
 //!     struct MyPinnedStruct {
 //!         msg: String,
-//!         // this will be our field that depends upon the pinning
+//!         // this is the field that depends upon the pinning
 //!         my_addr: usize,
 //!         _p: PhantomPinned,
 //!     }
@@ -228,7 +232,7 @@
 //! ## Convenient shortcuts
 //! There are some shortcuts for common expressions:
 //! ### Avoid creating [`MaybeUninit<T>`]
-//! In the previous examples, we always had to create some uninitialized memory. It is very common
+//! In the previous examples we always had to create some uninitialized memory. It is very common
 //! to write [`Box::pin`]`(`[`MaybeUninit::uninit()`]`)` or doing this with other smart pointers. For that
 //! reason the [`init!`] macro supports the following shortcut:
 //! ```rust
@@ -251,7 +255,8 @@
 //! }}.unwrap();
 //! my_struct.as_mut().print_info();
 //! ```
-//! The return type then also requires you to handle any allocation errors that could occur.
+//! The return type of such an [`init!`] invokation is a [`Result<T, E>`] where `T` is the initialized
+//! value and `E` is the error that could occur when trying to allocate the given place.
 //!
 //! ## Error Propagation
 //!
@@ -361,8 +366,9 @@
 //!     .$field = $expr;
 //!
 //!     // `$func` is an init function with the correct type for `$field`
-//!     // (pay attention to the right pin status), `$param` are arbitrary rust expressions
-//!     // and `$pat` is any rust pattern:
+//!     // (pay attention to the right pin status: if $field is structurally pinned, then
+//!     // $func needs to take a `PinInitMe`, otherwise an `InitMe`), `$param`
+//!     // are arbitrary rust expressions and `$pat` is any rust pattern:
 //!     ~let $pat = unsafe { $func(.$field, $($param),*).await }?;
 //!     // The following parts are optional:
 //!     // - the binding with `$pat`,
@@ -416,7 +422,8 @@
 //!
 //! ### Single init function/macro
 //! This way you will provide a single function or macro initializing the whole struct at once. For
-//! this to work you do not need to have access to the fields.
+//! this to work you do not need to have access to the fields. You can view an example in the
+//! [section](#what-about-encapsulation) before.
 //!
 //! You can also specify the type to avoid manual allocation:
 //! ```rust

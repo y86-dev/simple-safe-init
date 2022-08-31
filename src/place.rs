@@ -81,11 +81,11 @@ pub unsafe trait PartialInitPlace {
     /// pointee have been initialized via access through the raw pointer.
     ///
     /// Some smart pointers have layouts that depend upon the type parameters, take care of the
-    /// translation in this function. For example: [`Box<T>`] and [`Box<MaybeUninit<T>>`] **are
-    /// not** layout compatible, even though [`MaybeUninit<T>`] and `T` are! For more information
+    /// translation in this function. For example: [`Box<T>`] and [`Box<MaybeUninit<T>>`] are
+    /// **not** layout compatible, even though [`MaybeUninit<T>`] and `T` are! For more information
     /// on this, view [this UCG issue](https://github.com/rust-lang/unsafe-code-guidelines/issues/329) (unsafe code guidelines).
     ///
-    /// If `Self` is a pointer type, then this function is not allowed to change the memory location
+    /// If `Self` is a pointer type this function is not allowed to change the memory location
     /// of the initialized memory.
     ///
     /// No side effects allowed.
