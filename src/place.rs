@@ -5,7 +5,7 @@
 //! it. Please read the hidden documentation in the code for each of the functions you need to
 //! implement.
 
-use crate::{Guard, InitMe, InitPointer, PinInitMe};
+use super::{Guard, InitMe, InitPointer, PinInitMe};
 #[cfg(feature = "alloc")]
 use alloc::boxed::Box;
 use core::{cell::UnsafeCell, mem::MaybeUninit, pin::Pin};
@@ -47,8 +47,8 @@ macro_rules! cfg_std {
 /// access the memory, use that to initialize it and then convert it to the actual smart pointer.
 /// For this use-case, view the source code of [`UniqueArc<T>`] and [`UniqueRc<T>`].
 ///
-/// [`UniqueArc<T>`]: crate::unique::UniqueArc
-/// [`UniqueRc<T>`]: crate::unique::UniqueRc
+/// [`UniqueArc<T>`]: super::unique::UniqueArc
+/// [`UniqueRc<T>`]: super::unique::UniqueRc
 pub unsafe trait PartialInitPlace {
     /// This is the type `Self` will become, when everything is fully initialized.
     type Init;
@@ -204,7 +204,7 @@ where
 ///
 /// Types marked with this trait can be allocated and initialized in one go using [`init!`].
 ///
-/// [`init!`]: crate::init
+/// [`init!`]: crate::init!
 pub trait AllocablePlace {
     /// Error type that may occur when trying to allocate this type of place.
     type Error;
@@ -273,7 +273,7 @@ cfg_std! {
 ///
 /// DO NOT USE MANUALLY, use the [`static_init!`] macro instead.
 ///
-/// [`static_init!`]: crate::static_init
+/// [`static_init!`]: crate::static_init!
 pub struct ___StaticInit<T> {
     inner: UnsafeCell<MaybeUninit<T>>,
 }
@@ -328,7 +328,7 @@ impl<T> core::ops::DerefMut for ___StaticInit<T> {
 ///
 /// DO NOT IMPLEMENT MANUALLY, use the [`pin_data!`] macro instead.
 ///
-/// [`pin_data!`]: crate::pin_data
+/// [`pin_data!`]: crate::pin_data!
 pub unsafe trait ___PinData {
     /// # ⛔⛔⛔ **MACRO ONLY TYPE** ⛔⛔⛔
     ///

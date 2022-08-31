@@ -2,7 +2,7 @@
 //!
 //! Inspired by [pin-init](https://docs.rs/pin-init/0.2.0/pin_init/index.html) and [servo_arc](https://docs.rs/servo_arc/latest/servo_arc/struct.UniqueArc.html).
 
-use crate::{
+use super::{
     place::{AllocablePlace, PartialInitPlace},
     Guard, InitMe,
 };

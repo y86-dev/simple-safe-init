@@ -535,11 +535,11 @@ pub mod unique;
 
 mod tests;
 
-use crate::place::*;
 use core::{
     fmt::{self, Formatter, Pointer},
     marker::PhantomData,
 };
+use place::*;
 
 mod sealed {
     use super::*;

@@ -223,7 +223,7 @@ macro_rules! init {
             // SAFETY: macro-caller guarantees this is sound
             $func $(:: $(<$($args),*>::)? $path)*(field_place $($rest)*) }
         ), $($binding)?));
-        $crate::init!(@@inner($var $pin ($($inner)* $field: $crate::conjure(),) $name $(<$($generic),*>)?) $($tail)*);
+        $crate::init!(@@inner($var, $pin, ($($inner)* $field: $crate::conjure(),), ($name $(<$($generic),*>)?)) $($tail)*);
     };
     // a macro call initializing a single field
     (@@inner($var:ident, $pin:ident, ($($inner:tt)*), ($name:ident $(<$($generic:ty),*>)?))
@@ -312,7 +312,7 @@ macro_rules! init {
     };
     // generalized function/macro call helper (manual)
     (@@init_call($var:ident, $name:ident $(<$($generic:ty),*>)?, $field:ident, $field_place:ident, ($($call:tt)*), $($binding:pat)?)) => {
-        let result;
+        let _result;
         {
             // this type is used as the guard parameter on `(Pin)InitMe` and ensures that we
             // definitely initialize the specified field. we scope it here, to ensure no usage
@@ -320,7 +320,13 @@ macro_rules! init {
             #[doc(hidden)]
             struct ___LocalGuard;
             unsafe impl $crate::Guard for ___LocalGuard {}
-            let mut var = Some(&$var);
+            // we need the type of var, but we do not actually want to use it here.
+            let mut var;
+            #[allow(unused_assignments)]
+            {
+                var = Some(&$var);
+            }
+            // overwrite the value so we can borrow $var mutably again
             var = None;
             // get the correct pin projection (handled by the ___PinData type)
             let $field_place = unsafe {
@@ -341,10 +347,10 @@ macro_rules! init {
                 // unwrap the value produced by the function immediately, do not give access to the
                 // raw InitProof. Validate using the guard, if guard would be used a second time,
                 // then a move error would occur.
-                result = $crate::InitProof::___unwrap($($call)*, guard);
+                _result = $crate::InitProof::___unwrap($($call)*, guard);
             }
         }
-        $(let $binding = result;)?
+        $(let $binding = _result;)?
         // create a mutable reference to the object, it can now be used, because it was initialized.
         let $field = {
             unsafe {
@@ -438,7 +444,7 @@ macro_rules! init {
 macro_rules! pin_data {
     (
         $(#[$struct_attr:meta])*
-        $vis:vis struct $name:ident $(<$($($life:lifetime),+ $(,)?)? $($generic:ident $(: ?$sized:ident)?),* $(,)?>)? $(where $($whr:path : $bound:ty),* $(,)?)? {
+        $vis:vis struct $name:ident $(<$($($life:lifetime),+ $(,)?)? $($generic:ident $(: [$($bounds:tt)*])?),* $(,)?>)? $(where $($whr:path : $bound:ty),* $(,)?)? {
             $(
                 $(#$pin:ident)?
                 $(#[$attr:meta])*
@@ -448,7 +454,7 @@ macro_rules! pin_data {
         }
     ) => {
         $(#[$struct_attr])*
-        $vis struct $name $(<$($($life),+ ,)? $($generic $(: ?$sized)?),*>)? $(where $($whr : $bound),*)? {
+        $vis struct $name $(<$($($life),+ ,)? $($generic $(: $($bounds)*)?),*>)? $(where $($whr : $bound),*)? {
             $(
                 $(#[$attr])*
                 $fvis $field: $typ
@@ -465,7 +471,7 @@ macro_rules! pin_data {
                 )*
             }
 
-            unsafe impl$(<$($($life),+ ,)? $($generic $(: ?$sized)?),*>)? $crate::place::___PinData for $name$(<$($($life),+ ,)? $($generic),*>)? {
+            unsafe impl$(<$($($life),+ ,)? $($generic $(: $($bounds)*)?),*>)? $crate::place::___PinData for $name$(<$($($life),+ ,)? $($generic),*>)? {
                 type ___PinData = ___ThePinData;
             }
         };
