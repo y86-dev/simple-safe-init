@@ -727,13 +727,6 @@ unsafe impl<'a, T: ?Sized, G: Guard> PartialInitPlace for InitMe<'a, T, G> {
         Self: 'b
     ;
 
-    unsafe fn ___init_me<GG: Guard>(this: &mut Self, _guard: GG) -> Self::InitMe<'_, GG> {
-        InitMe {
-            ptr: this.ptr,
-            _phantom: PhantomData,
-        }
-    }
-
     unsafe fn ___init(_this: Self) -> Self::Init {
         InitProof {
             value: (),
@@ -911,13 +904,6 @@ unsafe impl<'a, T: ?Sized, G: Guard> PartialInitPlace for PinInitMe<'a, T, G> {
     where
         Self: 'b
     ;
-
-    unsafe fn ___init_me<GG: Guard>(this: &mut Self, _guard: GG) -> Self::InitMe<'_, GG> {
-        PinInitMe {
-            ptr: this.ptr,
-            _phantom: PhantomData,
-        }
-    }
 
     unsafe fn ___init(_this: Self) -> Self::Init {
         InitProof {

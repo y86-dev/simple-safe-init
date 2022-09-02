@@ -317,6 +317,58 @@ impl<T> core::ops::DerefMut for ___StaticInit<T> {
     }
 }
 
+/// # ⛔⛔⛔ **MACRO ONLY STRUCT** ⛔⛔⛔
+///
+/// This struct is only designed to be used by the macros of this library.
+/// Using it directly might run into **unexpected and undefined behavior!**
+///
+/// I repeat: **DO NOT DECLARE/ALLOCATE/INITIALIZE THIS STRUCT MANUALLY!!**,
+///
+/// # Safety
+///
+/// DO NOT USE MANUALLY!
+pub struct ___StackInit<T> {
+    inner: MaybeUninit<T>,
+    drop: bool,
+}
+
+impl<T> ___StackInit<T> {
+    #[doc = include_str!("macro_only.md")]
+    /// - the returned value is initialized before it is used.
+    pub const unsafe fn ___new() -> Self {
+        Self {
+            inner: MaybeUninit::uninit(),
+            drop: false,
+        }
+    }
+    #[doc = include_str!("macro_only.md")]
+    /// - pointer points to uninitialized memory.
+    pub unsafe fn ___as_mut_ptr(&mut self) -> *mut T {
+        self.inner.as_mut_ptr()
+    }
+
+    #[doc = include_str!("macro_only.md")]
+    /// - `inner` has been initialized.
+    pub unsafe fn ___assume_init_mut(&mut self) -> &mut T {
+        self.drop = true;
+        unsafe {
+            // SAFETY: caller guarantees this is safe
+            self.inner.assume_init_mut()
+        }
+    }
+}
+
+impl<T> Drop for ___StackInit<T> {
+    fn drop(&mut self) {
+        if self.drop {
+            unsafe {
+                // SAFETY: we have to be initialized for drop to be true
+                self.inner.assume_init_drop();
+            }
+        }
+    }
+}
+
 /// # ⛔⛔⛔ **MACRO ONLY TRAIT** ⛔⛔⛔
 ///
 /// This trait is only designed to be implemented by the macros of this library.

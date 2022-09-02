@@ -564,40 +564,10 @@ macro_rules! pin_data {
 #[macro_export]
 macro_rules! stack_init {
     ($var:ident: $typ:ident $(<$($generic:ty),*>)? => { $($tail:tt)* }) => {
-        let mut $var: ::core::mem::MaybeUninit<$typ $(<$($generic),*>)?> = ::core::mem::MaybeUninit::uninit();
-        {
-            // this type is used as the guard parameter on `(Pin)InitMe` and ensures that we
-            // definitely initialize the specified field. we scope it here, to ensure no usage
-            // outside of this macro.
-            #[doc(hidden)]
-            struct ___LocalGuard;
-            unsafe impl $crate::Guard for ___LocalGuard {}
-            let tmp = unsafe {
-                // SAFETY: we never move out of $var and shadow it at the end so
-                // no one can move out of it.
-                <$crate::PinInitMe<'_, $typ $(<$($generic),*>)?, ___LocalGuard> as $crate::InitPointer<'_, $typ $(<$($generic),*>)?, ___LocalGuard>>::___new(
-                    ::core::mem::MaybeUninit::as_mut_ptr(&mut $var),
-                    ___LocalGuard
-                )
-            };
-            let guard = ___LocalGuard;
-            {
-                // shadow the type def
-                #[doc(hidden)]
-                struct ___LocalGuard;
-                let () = $crate::InitProof::___unwrap(
-                    $crate::init! { tmp => $typ $(<$($generic),*>)? { $($tail)* }},
-                    guard
-                );
-            }
-        }
-        // SAFETY: variable is shadowed, so it cannot be moved out of.
-        let mut $var = unsafe {
-            ::core::pin::Pin::new_unchecked(::core::mem::MaybeUninit::assume_init_mut(&mut $var))
+        let mut $var: $crate::place::___StackInit<$typ $(<$($generic),*>)?> = unsafe {
+            // SAFETY: macro only func
+            $crate::place::___StackInit::___new()
         };
-    };
-    ($var:ident: $typ:ident $(<$($generic:ty),*>)? => ( $($tail:tt)* )) => {
-        let mut $var: ::core::mem::MaybeUninit<$typ $(<$($generic),*>)?> = ::core::mem::MaybeUninit::uninit();
         {
             // this type is used as the guard parameter on `(Pin)InitMe` and ensures that we
             // definitely initialize the specified field. we scope it here, to ensure no usage
@@ -609,24 +579,78 @@ macro_rules! stack_init {
                 // SAFETY: we never move out of $var and shadow it at the end so
                 // no one can move out of it.
                 <$crate::PinInitMe<'_, $typ $(<$($generic),*>)?, ___LocalGuard> as $crate::InitPointer<'_, $typ $(<$($generic),*>)?, ___LocalGuard>>::___new(
-                    ::core::mem::MaybeUninit::as_mut_ptr(&mut $var),
+                    $crate::place::___StackInit::___as_mut_ptr(&mut $var),
                     ___LocalGuard
                 )
             };
             let guard = ___LocalGuard;
             {
+                struct PanicGuard;
+                impl Drop for PanicGuard {
+                    fn drop(&mut self) {
+                        panic!("panicked while initializing a variable on the stack");
+                    }
+                }
+                let g = PanicGuard;
                 // shadow the type def
                 #[doc(hidden)]
                 struct ___LocalGuard;
                 let () = $crate::InitProof::___unwrap(
-                    $crate::init!($($tail)*),
+                    // because we requrie a normal InitProof here, the initialization cannot error
+                    $crate::init! { $var => $typ $(<$($generic),*>)? { $($tail)* }},
                     guard
                 );
+                ::core::mem::forget(g);
             }
         }
         // SAFETY: variable is shadowed, so it cannot be moved out of.
         let mut $var = unsafe {
-            ::core::pin::Pin::new_unchecked(::core::mem::MaybeUninit::assume_init_mut(&mut $var))
+            ::core::pin::Pin::new_unchecked($crate::place::___StackInit::___assume_init_mut(&mut $var))
+        };
+    };
+    ($var:ident: $typ:ident $(<$($generic:ty),*>)? => ( $($tail:tt)* )) => {
+        let mut $var: $crate::place::___StackInit<$typ $(<$($generic),*>)?> = unsafe {
+            // SAFETY: macro only func
+            $crate::place::___StackInit::___new()
+        };
+        {
+            // this type is used as the guard parameter on `(Pin)InitMe` and ensures that we
+            // definitely initialize the specified field. we scope it here, to ensure no usage
+            // outside of this macro.
+            #[doc(hidden)]
+            struct ___LocalGuard;
+            unsafe impl $crate::Guard for ___LocalGuard {}
+            let $var = unsafe {
+                // SAFETY: we never move out of $var and shadow it at the end so
+                // no one can move out of it.
+                <$crate::PinInitMe<'_, $typ $(<$($generic),*>)?, ___LocalGuard> as $crate::InitPointer<'_, $typ $(<$($generic),*>)?, ___LocalGuard>>::___new(
+                    $crate::place::___StackInit::___as_mut_ptr(&mut $var),
+                    ___LocalGuard
+                )
+            };
+            let guard = ___LocalGuard;
+            {
+                struct PanicGuard;
+                impl Drop for PanicGuard {
+                    fn drop(&mut self) {
+                        panic!("panicked while initializing a variable on the stack");
+                    }
+                }
+                let g = PanicGuard;
+                // shadow the type def
+                #[doc(hidden)]
+                struct ___LocalGuard;
+                let () = $crate::InitProof::___unwrap(
+                    // because we require a normal InitProof here, the initialization cannot error
+                    $crate::init!($($tail)*),
+                    guard
+                );
+                ::core::mem::forget(g);
+            }
+        }
+        // SAFETY: variable is shadowed, so it cannot be moved out of.
+        let mut $var = unsafe {
+            ::core::pin::Pin::new_unchecked($crate::place::___StackInit::___assume_init_mut(&mut $var))
         };
     };
 }
