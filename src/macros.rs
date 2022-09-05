@@ -83,7 +83,7 @@ macro_rules! init {
                 unsafe {
                     // SAFETY: The pointee of `var` has been fully initialized, if this part is
                     // reachable and no compile error exist.
-                    $crate::place::PartialInitPlace::___init(var)
+                    $crate::place::PartialInitPlace::___assume_init(var)
                 }
             }
         }
@@ -151,7 +151,7 @@ macro_rules! init {
                 let res = unsafe {
                     // SAFETY: The pointee of `var` has been fully initialized, if this part is
                     // reachable and no compile error exist.
-                    $crate::place::PartialInitPlace::___init(var)
+                    $crate::place::PartialInitPlace::___assume_init(var)
                 };
                 Ok(res)
             },
@@ -391,7 +391,7 @@ macro_rules! init {
                 unsafe {
                     // SAFETY: The pointee was initialized by the function above and the InitProof
                     // was valid.
-                    $crate::place::PartialInitPlace::___init(var)
+                    $crate::place::PartialInitPlace::___assume_init(var)
                 }
             }
         }
@@ -425,7 +425,7 @@ macro_rules! init {
                 unsafe {
                     // SAFETY: The pointee was initialized by the function above and the InitProof
                     // was valid.
-                    Ok($crate::place::PartialInitPlace::___init(var))
+                    Ok($crate::place::PartialInitPlace::___assume_init(var))
                 }
             }
         }

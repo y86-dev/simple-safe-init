@@ -93,7 +93,7 @@ pub unsafe trait PartialInitPlace {
     /// [`Box<T>`]: [`alloc::boxed::Box<T>`]
     /// [`Box<MaybeUninit<T>>`]: [`core::mem::MaybeUninit<T>`]
     /// [`MaybeUninit<T>`]: [`core::mem::MaybeUninit<T>`]
-    unsafe fn ___init(this: Self) -> Self::Init;
+    unsafe fn ___assume_init(this: Self) -> Self::Init;
 
     #[doc = include_str!("macro_only.md")]
     /// - the pointee is not moved out of the pointer.
@@ -117,7 +117,7 @@ unsafe impl PartialInitPlace for ! {
     type Raw = !;
     type InitMe<'a, G: Guard> = InitMe<'a, !, G> where Self: 'a;
 
-    unsafe fn ___init(this: Self) -> Self::Init {
+    unsafe fn ___assume_init(this: Self) -> Self::Init {
         this
     }
 
@@ -135,7 +135,7 @@ unsafe impl<T> PartialInitPlace for MaybeUninit<T> {
         Self: 'a
     ;
 
-    unsafe fn ___init(this: Self) -> Self::Init {
+    unsafe fn ___assume_init(this: Self) -> Self::Init {
         // SAFETY: `T` has been initialized.
         unsafe { this.assume_init() }
     }
@@ -155,7 +155,7 @@ cfg_std! {
             Self: 'a
         ;
 
-        unsafe fn ___init(this: Self) -> Self::Init {
+        unsafe fn ___assume_init(this: Self) -> Self::Init {
             // SAFETY: `T` has been initialized
             unsafe { this.assume_init() }
         }
@@ -180,10 +180,10 @@ where
         Self: 'a
     ;
 
-    unsafe fn ___init(this: Self) -> Self::Init {
-        // SAFETY: P::___init will not change the address of the pointer, so we can re-pin the
+    unsafe fn ___assume_init(this: Self) -> Self::Init {
+        // SAFETY: P::___assume_init will not change the address of the pointer, so we can re-pin the
         // returned smart pointer (it is a pointer, because it implements Deref)
-        unsafe { Pin::new_unchecked(P::___init(Pin::into_inner_unchecked(this))) }
+        unsafe { Pin::new_unchecked(P::___assume_init(Pin::into_inner_unchecked(this))) }
     }
 
     unsafe fn ___as_mut_ptr(this: &mut Self, _proof: &impl FnOnce(&Self::Raw)) -> *mut Self::Raw {

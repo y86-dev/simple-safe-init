@@ -92,7 +92,7 @@ macro_rules! make_unique {
             type Raw = T;
             type InitMe<'a, G: Guard> = InitMe<'a, T, G> where Self: 'a;
 
-            unsafe fn ___init(this: Self) -> Self::Init {
+            unsafe fn ___assume_init(this: Self) -> Self::Init {
                 $name {
                     // SAFETY: `T` has been initialized
                     inner: unsafe { $orig::<MaybeUninit<T>>::assume_init(this.inner) },

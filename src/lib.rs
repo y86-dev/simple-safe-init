@@ -727,7 +727,7 @@ unsafe impl<'a, T: ?Sized, G: Guard> PartialInitPlace for InitMe<'a, T, G> {
         Self: 'b
     ;
 
-    unsafe fn ___init(_this: Self) -> Self::Init {
+    unsafe fn ___assume_init(_this: Self) -> Self::Init {
         InitProof {
             value: (),
             _phantom: PhantomData,
@@ -905,7 +905,7 @@ unsafe impl<'a, T: ?Sized, G: Guard> PartialInitPlace for PinInitMe<'a, T, G> {
         Self: 'b
     ;
 
-    unsafe fn ___init(_this: Self) -> Self::Init {
+    unsafe fn ___assume_init(_this: Self) -> Self::Init {
         InitProof {
             value: (),
             _phantom: PhantomData,
