@@ -171,7 +171,7 @@ macro_rules! init {
     // the values of the fields are `conjure()` so we never actually produce a value.
     (@@inner($var:ident, $pin:ident, ($($inner:tt)*), ($name:ident $(<$($generic:ty),*>)?))) => {
         #[allow(unreachable_code, clippy::diverging_sub_expression)]
-        let ____check_all_init = || {
+        let ___check_all_init = || {
             let _struct: $name $(<$($generic),*>)? = $name {
                 $($inner)*
             };
