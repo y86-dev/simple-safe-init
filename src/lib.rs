@@ -1026,15 +1026,3 @@ impl<G: Guard> InitProof<(), G> {
 ///
 /// [`InitProof<(), G>`]: InitProof
 pub unsafe trait Guard {}
-
-/// Workaround to avoid a clippy error lint.
-///
-/// This prevents clippy denying code (diverging sub-expression) using the [`init!`]
-/// macro when it checks for correct field initialization.
-///
-/// This is not really useful for normal code, because it always panics.
-/// # Panics
-/// Always panics.
-pub fn conjure<T>() -> T {
-    panic!("this function is not designed to be called!")
-}
