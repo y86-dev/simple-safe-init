@@ -10,12 +10,16 @@ pin_data! {
     }
 }
 
+fn generate() -> u64 {
+    64 + 8
+}
+
 fn main() {
     let foo = MaybeUninit::uninit();
     let foo = init! { foo => Foo {
         .a = 32;
-        .b = *a as u64 + 7;
-        .c = unsafe { NonZeroU32::new_unchecked(*b as u32) };
+        .b = generate();
+        .c = unsafe { NonZeroU32::new_unchecked(9) };
     }};
     println!("{:?}", foo);
 }

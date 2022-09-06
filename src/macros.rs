@@ -45,6 +45,10 @@
 ///     bar.write(1).ret(1)
 /// }
 ///
+/// fn generate() -> f64 {
+///     0.9
+/// }
+///
 /// let foo = Box::pin(MaybeUninit::<Foo<f64>>::uninit());
 /// // first specify the expression you want to initialize, then specify the exact type with generics
 /// init! { foo => Foo<f64> {
@@ -54,8 +58,8 @@
 ///     init_limit(.limit, 0);
 ///     // use a delegation macro
 ///     init_inner!(.inner, InnerFoo { x: 16 });
-///     // you can use already initialized values
-///     .value = (*limit) as f64;
+///     // you can use arbitrary expressions
+///     .value = generate();
 ///     // get the return value from an init function
 ///     ~let val = init_bar(.bar);
 ///     // you can use normal macros (as long as they do not start with `.` and then an ident):
@@ -194,14 +198,6 @@ macro_rules! init {
                 );
             }
         }
-        let $field = {
-            unsafe {
-                // SAFETY: we initialized the memory above, so we can now create a reference
-                &mut *::core::ptr::addr_of_mut!((*$crate::place::PartialInitPlace::___as_mut_ptr(&mut $var, &|_: &$name $(<$($generic),*>)?| {})).$field)
-            }
-        };
-        #[allow(unused_variables)]
-        let $field = $field;
         $crate::init!(@@inner($var, $pin, ($($inner)* $field: ::core::panic!(),), ($name $(<$($generic),*>)?)) $($tail)*);
     };
 
@@ -351,16 +347,6 @@ macro_rules! init {
             }
         }
         $(let $binding = _result;)?
-        // create a mutable reference to the object, it can now be used, because it was initialized.
-        let $field = {
-            unsafe {
-                // SAFETY: calling macro-only functions
-                &mut *::core::ptr::addr_of_mut!((*$crate::place::PartialInitPlace::___as_mut_ptr(&mut $var, &|_: &$name $(<$($generic),*>)?| {})).$field)
-            }
-        };
-        // do not complain, if it is not used.
-        #[allow(unused_variables)]
-        let $field = $field;
     };
     // generalized single function/macro init helper
     (@@fully_init($var:expr, ($($init:tt)*)$(, $($rest:tt)*)?)) => {
