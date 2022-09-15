@@ -154,70 +154,78 @@ macro_rules! stack_init {
 /// ```
 #[macro_export]
 macro_rules! pin_init {
-    ($(&$this:ident <- )? $t:ident $(<$($generics:ty),* $(,)?>)? {
-        $($field:ident $(: $val:expr)?),*
-        $(,)?
+    ($($this:ident)? <- $t:ident $(<$($generics:ty),* $(,)?>)? {
+        $($inner:tt)*
     }) => {{
         let init = move |place: *mut $t $(<$($generics),*>)?| -> ::core::result::Result<(), _> {
             $(let $this = unsafe { ::core::ptr::NonNull::new_unchecked(place) };)?
-            $(
-                $(let $field = $val;)?
-                // call the initializer
-                // SAFETY: place is valid, because we are inside of an initializer closure, we return
-                //         when an error/panic occurs.
-                unsafe { $crate::PinInitializer::__init_pinned($field, ::core::ptr::addr_of_mut!((*place).$field))? };
-                // create the drop guard
-                // SAFETY: we forget the guard later when initialization has succeeded.
-                let $field = unsafe { $crate::DropGuard::new(::core::ptr::addr_of_mut!((*place).$field)) };
-            )*
-            #[allow(unreachable_code, clippy::diverging_sub_expression)]
-            if false {
-                let _: $t $(<$($generics),*>)? = $t {
-                    $($field: ::core::todo!()),*
-                };
-            }
-            $(
-                ::core::mem::forget($field);
-            )*
-            Ok(())
+            $crate::init!(@init($crate::PinInitializer::__init_pinned) @place(place) @typ($t $(<$($generics),*>)?) @parse($($inner)*) @check() @forget());
         };
         let init = unsafe { $crate::PinInit::from_closure(init) };
         init
-    }}
+    }};
 }
 
 #[macro_export]
 macro_rules! init {
-    ($(where $this:ident <- )?$t:ident $(<$($generics:ty),* $(,)?>)? {
-        $($field:ident $(: $val:expr)?),*
-        $(,)?
+    ($($this:ident)? <- $t:ident $(<$($generics:ty),* $(,)?>)? {
+        $($inner:tt)*
     }) => {{
         let init = move |place: *mut $t $(<$($generics),*>)?| -> ::core::result::Result<(), _> {
             $(let $this = unsafe { ::core::ptr::NonNull::new_unchecked(place) };)?
-            $(
-                $(let $field = $val;)?
-                // call the initializer
-                // SAFETY: place is valid, because we are inside of an initializer closure, we return
-                //         when an error/panic occurs.
-                unsafe { $crate::Initializer::__init($field, ::core::ptr::addr_of_mut!((*place).$field))? };
-                // create the drop guard
-                // SAFETY: we forget the guard later when initialization has succeeded.
-                let $field = unsafe { $crate::DropGuard::new(::core::ptr::addr_of_mut!((*place).$field)) };
-            )*
-            #[allow(unreachable_code, clippy::diverging_sub_expression)]
-            if false {
-                let _: $t $(<$($generics),*>)? = $t {
-                    $($field: ::core::todo!()),*
-                };
-            }
-            $(
-                ::core::mem::forget($field);
-            )*
-            Ok(())
+            $crate::init!(@init($crate::Initializer::__init) @place(place) @typ($t $(<$($generics),*>)?) @parse($($inner)*) @check() @forget());
         };
-        let init = unsafe { $crate::Init::from_closure(init) };
+        let init = unsafe { $crate::PinInit::from_closure(init) };
         init
-    }}
+    }};
+    (@init($init:path) @place($place:ident) @typ($t:ident $(<$($generics:ty),*>)?) @parse() @check($($check:tt)*) @forget($($forget:tt)*)) => {
+        #[allow(unreachable_code, clippy::diverging_sub_expression)]
+        if false {
+            let _: $t $(<$($generics),*>)? = $t {
+                $($check)*
+            };
+        }
+        $($forget)*
+        return Ok(());
+    };
+    (@init($init:path) @place($place:ident) @typ($t:ident $(<$($generics:ty),*>)?) @parse($field:ident <- $val:expr) @check($($check:tt)*) @forget($($forget:tt)*)) => {
+        let $field = $val;
+        // SAFETY: place is valid, because we are inside of an initializer closure, we return
+        //         when an error/panic occurs.
+        unsafe { $init($field, ::core::ptr::addr_of_mut!((*$place).$field))? };
+        // create the drop guard
+        // SAFETY: we forget the guard later when initialization has succeeded.
+        let $field = unsafe { $crate::DropGuard::new(::core::ptr::addr_of_mut!((*place).$field)) };
+        $crate::init!(@init($init) @place($place) @typ($t $(<$($generics),*>)?) @parse() @check($field: ::core::todo!(), $($check)*) @forget(::core::mem::forget($field); $($forget)*));
+    };
+    (@init($init:path) @place($place:ident) @typ($t:ident $(<$($generics:ty),*>)?) @parse($field:ident <- $val:expr, $($tail:tt)*) @check($($check:tt)*) @forget($($forget:tt)*)) => {
+        let $field = $val;
+        // SAFETY: place is valid, because we are inside of an initializer closure, we return
+        //         when an error/panic occurs.
+        unsafe { $init($field, ::core::ptr::addr_of_mut!((*$place).$field))? };
+        // create the drop guard
+        // SAFETY: we forget the guard later when initialization has succeeded.
+        let $field = unsafe { $crate::DropGuard::new(::core::ptr::addr_of_mut!((*$place).$field)) };
+        $crate::init!(@init($init) @place($place) @typ($t $(<$($generics),*>)?) @parse($($tail)*) @check($field: ::core::todo!(), $($check)*) @forget(::core::mem::forget($field); $($forget)*));
+    };
+    (@init($init:path) @place($place:ident) @typ($t:ident $(<$($generics:ty),*>)?) @parse($field:ident $(: $val:expr)?) @check($($check:tt)*) @forget($($forget:tt)*)) => {
+        $(let $field = $val;)?
+        // write the value directly
+        unsafe { ::core::ptr::addr_of_mut!((*$place).$field).write($field) };
+        // create the drop guard
+        // SAFETY: we forget the guard later when initialization has succeeded.
+        let $field = unsafe { $crate::DropGuard::new(::core::ptr::addr_of_mut!((*$place).$field)) };
+        $crate::init!(@init($init) @place($place) @typ($t $(<$($generics),*>)?) @parse() @check($field: ::core::todo!(), $($check)*) @forget(::core::mem::forget($field); $($forget)*));
+    };
+    (@init($init:path) @place($place:ident) @typ($t:ident $(<$($generics:ty),*>)?) @parse($field:ident $(: $val:expr)?, $($tail:tt)*) @check($($check:tt)*) @forget($($forget:tt)*)) => {
+        $(let $field = $val;)?
+        // write the value directly
+        unsafe { ::core::ptr::addr_of_mut!((*$place).$field).write($field) };
+        // create the drop guard
+        // SAFETY: we forget the guard later when initialization has succeeded.
+        let $field = unsafe { $crate::DropGuard::new(::core::ptr::addr_of_mut!((*$place).$field)) };
+        $crate::init!(@init($init) @place($place) @typ($t $(<$($generics),*>)?) @parse($($tail)*) @check($field: ::core::todo!(), $($check)*) @forget(::core::mem::forget($field); $($forget)*));
+    };
 }
 
 mod sealed {

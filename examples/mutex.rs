@@ -75,8 +75,8 @@ pub struct Mutex<T> {
 
 impl<T> Mutex<T> {
     pub fn new(val: T) -> impl PinInitializer<Self, !> {
-        pin_init!(Self {
-            wait_list: ListHead::new(),
+        pin_init!( <- Self {
+            wait_list <- ListHead::new(),
             spin_lock: SpinLock::new(),
             locked: Cell::new(false),
             data: UnsafeCell::new(val),
@@ -173,9 +173,9 @@ struct WaitEntry {
 
 impl WaitEntry {
     fn insert_new(list: &ListHead) -> impl PinInitializer<Self, !> + '_ {
-        pin_init!(Self {
+        pin_init!(<- Self {
             thread: current(),
-            wait_list: ListHead::insert_new(list),
+            wait_list <- ListHead::insert_new(list),
         })
     }
 }

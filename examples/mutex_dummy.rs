@@ -38,12 +38,12 @@ pub struct Mutex<T: ?Sized> {
 }
 
 fn create_single_mutex() {
-    let mtx: Result<Pin<Box<Mutex<String>>>, AllocInitErr<!>> = Box::pin_init(pin_init! {
-    Mutex<String> {
-        raw: init_raw_mutex(),
-        pin: PhantomPinned,
-        val: UnsafeCell::new("Hello World".to_owned()),
-    }});
+    let mtx: Result<Pin<Box<Mutex<String>>>, AllocInitErr<!>> =
+        Box::pin_init(pin_init!( <- Mutex<String> {
+            raw <- init_raw_mutex(),
+            pin: PhantomPinned,
+            val: UnsafeCell::new("Hello World".to_owned()),
+        }));
     println!("{:?}", mtx);
 }
 
@@ -55,8 +55,8 @@ struct MultiMutex {
 
 impl<T> Mutex<T> {
     const fn new(value: T) -> impl PinInitializer<Self, !> {
-        let init = pin_init! { Self {
-            raw: init_raw_mutex(),
+        let init = pin_init! { <- Self {
+            raw <- init_raw_mutex(),
             pin: PhantomPinned,
             val: UnsafeCell::new(value),
         }};
@@ -65,11 +65,11 @@ impl<T> Mutex<T> {
 }
 
 fn create_multi_mutex() {
-    let mmx: Result<Pin<Box<MultiMutex>>, AllocInitErr<!>> = Box::pin_init(pin_init! {
-    MultiMutex {
-        data1: Mutex::new("Hello World".to_owned()),
-        data2: Mutex::new((42, 13.37)),
-    }});
+    let mmx: Result<Pin<Box<MultiMutex>>, AllocInitErr<!>> =
+        Box::pin_init(pin_init!( <- MultiMutex {
+            data1 <- Mutex::new("Hello World".to_owned()),
+            data2 <- Mutex::new((42, 13.37)),
+        }));
     println!("{:?}", mmx);
 }
 
