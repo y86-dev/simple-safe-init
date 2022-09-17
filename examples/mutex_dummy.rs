@@ -17,14 +17,14 @@ struct mutex {
 
 unsafe extern "C" fn __init_mutex(_mutex: *mut mutex) {}
 
-fn init_raw_mutex() -> impl PinInitializer<MaybeUninit<UnsafeCell<mutex>>, !> {
+fn init_raw_mutex() -> impl Initializer<MaybeUninit<UnsafeCell<mutex>>, !> {
     let init = move |place: *mut MaybeUninit<UnsafeCell<mutex>>| {
         // SAFETY: place is valid
         unsafe { __init_mutex(place.cast()) };
         Ok(())
     };
     // SAFETY: the closure initializes all fields
-    unsafe { PinInit::from_closure(init) }
+    unsafe { Init::from_closure(init) }
 }
 
 unsafe impl<T: ?Sized + Send> Send for Mutex<T> {}
@@ -39,7 +39,7 @@ pub struct Mutex<T: ?Sized> {
 
 fn create_single_mutex() {
     let mtx: Result<Pin<Box<Mutex<String>>>, AllocInitErr<!>> =
-        Box::pin_init(pin_init!( <- Mutex<String> {
+        Box::pin_init(init!( <- Mutex<String> {
             raw <- init_raw_mutex(),
             pin: PhantomPinned,
             val: UnsafeCell::new("Hello World".to_owned()),
@@ -54,8 +54,8 @@ struct MultiMutex {
 }
 
 impl<T> Mutex<T> {
-    const fn new(value: T) -> impl PinInitializer<Self, !> {
-        let init = pin_init! { <- Self {
+    const fn new(value: T) -> impl Initializer<Self, !> {
+        let init = init! { <- Self {
             raw <- init_raw_mutex(),
             pin: PhantomPinned,
             val: UnsafeCell::new(value),
@@ -65,11 +65,10 @@ impl<T> Mutex<T> {
 }
 
 fn create_multi_mutex() {
-    let mmx: Result<Pin<Box<MultiMutex>>, AllocInitErr<!>> =
-        Box::pin_init(pin_init!( <- MultiMutex {
-            data1 <- Mutex::new("Hello World".to_owned()),
-            data2 <- Mutex::new((42, 13.37)),
-        }));
+    let mmx: Result<Pin<Box<MultiMutex>>, AllocInitErr<!>> = Box::pin_init(init!( <- MultiMutex {
+        data1 <- Mutex::new("Hello World".to_owned()),
+        data2 <- Mutex::new((42, 13.37)),
+    }));
     println!("{:?}", mmx);
 }
 

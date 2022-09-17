@@ -7,7 +7,7 @@
 )]
 
 use core::{
-    cell::{Cell, UnsafeCell},
+    cell::Cell,
     marker::PhantomPinned,
     ptr::{self, NonNull},
 };
@@ -15,6 +15,7 @@ use core::{
 use simple_safe_init::*;
 
 #[repr(C)]
+#[derive(Debug)]
 pub struct ListHead {
     next: Link,
     prev: Link,
@@ -22,18 +23,18 @@ pub struct ListHead {
 }
 
 impl ListHead {
-    pub fn new() -> impl PinInitializer<Self, !> {
-        pin_init!(this <- Self {
-            next: unsafe { Link::new_unchecked(this.as_ptr()) },
-            prev: unsafe { Link::new_unchecked(this.as_ptr()) },
+    pub fn new() -> impl Initializer<Self, !> {
+        init!(this <- Self {
+            next: Link::from(this),
+            prev: Link::from(this),
             pin: PhantomPinned,
         })
     }
 
-    pub fn insert_new(list: &ListHead) -> impl PinInitializer<Self, !> + '_ {
-        pin_init!(this <- Self {
-            prev: unsafe { Link::replace_raw(list.next.prev(),  Link::new_unchecked(this.as_ptr()) )},
-            next: list.next.replace(unsafe { Link::new_unchecked(this.as_ptr()) }),
+    pub fn insert_new(list: &ListHead) -> impl Initializer<Self, !> + '_ {
+        init!(this <- Self {
+            prev: list.next.prev().replace(Link::from(this)),
+            next: list.next.replace(Link::from(this)),
             pin: PhantomPinned,
         })
     }
@@ -45,75 +46,70 @@ impl ListHead {
             Some(unsafe { NonNull::new_unchecked(self.next.as_ptr() as *mut Self) })
         }
     }
-
-    pub unsafe fn debug_print(this: NonNull<Self>, mut until: Option<NonNull<Self>>) {
-        if false {
-            if until.map(|t| this == t).unwrap_or(false) {
-                println!("({:p}) }}", this);
-                return;
-            }
-            if until.get_or_insert(this) == &this {
-                print!("{{ ");
-            }
-            print!("{:p} -> ", this);
-            Self::debug_print(
-                *(&raw const (*this.as_ptr()).next).cast::<NonNull<Self>>(),
-                until,
-            );
-        }
-    }
 }
 
 impl Drop for ListHead {
     fn drop(&mut self) {
-        //println!("dropping {self:p}...");
-        if let Some(next) = self.next() {
-            let next = next.as_ptr();
-            let prev = self.prev.as_ptr() as *mut Self;
-            unsafe {
-                Link::set_raw(&raw mut (*next).prev, prev);
-                Link::set_raw(&raw mut (*prev).next, next);
-            }
+        if !ptr::eq(self.next.as_ptr(), self) {
+            let next = unsafe { &*self.next.as_ptr() };
+            let prev = unsafe { &*self.prev.as_ptr() };
+            next.prev.set(&self.prev);
+            prev.next.set(&self.next);
         }
     }
 }
 
 #[repr(transparent)]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct Link(Cell<NonNull<ListHead>>);
+
+impl From<InitPtr<ListHead>> for Link {
+    fn from(ptr: InitPtr<ListHead>) -> Self {
+        Self(Cell::new(ptr.into()))
+    }
+}
 
 impl Link {
     unsafe fn new_unchecked(ptr: *const ListHead) -> Self {
         unsafe { Self(Cell::new(NonNull::new_unchecked(ptr as *mut ListHead))) }
     }
 
-    fn prev(&self) -> *const Link {
-        unsafe { &raw const (*self.0.get().as_ptr()).prev }
+    fn prev(&self) -> &Link {
+        unsafe { &(*self.0.get().as_ptr()).prev }
     }
 
     fn replace(&self, other: Link) -> Link {
         unsafe { Link::new_unchecked(self.0.replace(other.0.get()).as_ptr()) }
     }
 
-    unsafe fn replace_raw(this: *const Self, other: Link) -> Link {
-        let loc: *mut *mut ListHead =
-            UnsafeCell::raw_get(this.cast::<UnsafeCell<NonNull<ListHead>>>())
-                .cast::<*mut ListHead>();
-        let val: *mut ListHead = other.0.into_inner().as_ptr();
-        unsafe { Link::new_unchecked(ptr::replace::<*mut ListHead>(loc, val)) }
-    }
-
     fn as_ptr(&self) -> *const ListHead {
         self.0.get().as_ptr()
     }
 
-    unsafe fn set_raw(this: *mut Self, val: *mut ListHead) {
-        let loc: *mut *mut ListHead =
-            UnsafeCell::raw_get(this.cast::<UnsafeCell<NonNull<ListHead>>>())
-                .cast::<*mut ListHead>();
-        loc.write(val);
+    fn set(&self, val: &Link) {
+        self.0.set(val.0.get());
     }
 }
 
 #[allow(dead_code)]
-fn main() {}
+fn main() -> Result<(), AllocInitErr<!>> {
+    let a = Box::pin_init(ListHead::new())?;
+    stack_init!(let b <- ListHead::insert_new(&*a));
+    stack_init!(let c <- ListHead::insert_new(&*a));
+    stack_init!(let d <- ListHead::insert_new(&*b));
+    let e = Box::pin_init(ListHead::insert_new(&*b))?;
+    println!("a ({a:p}): {a:?}");
+    println!("b ({b:p}): {b:?}");
+    println!("c ({c:p}): {c:?}");
+    println!("d ({d:p}): {d:?}");
+    println!("e ({e:p}): {e:?}");
+    let mut inspect = &*a;
+    while let Some(next) = inspect.next() {
+        println!("({inspect:p}): {inspect:?}");
+        inspect = unsafe { &*next.as_ptr() };
+        if core::ptr::eq(inspect, &*a) {
+            break;
+        }
+    }
+    Ok(())
+}

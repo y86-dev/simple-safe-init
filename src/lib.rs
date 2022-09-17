@@ -1,8 +1,6 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 //
-#![feature(never_type)]
-#![feature(raw_ref_op)]
-#![feature(unwrap_infallible)]
+#![cfg_attr(feature = "never_type", feature(never_type))]
 #![feature(allocator_api)]
 #![cfg_attr(
     any(feature = "alloc", feature = "std"),
@@ -12,7 +10,14 @@
 
 #[cfg(feature = "alloc")]
 use alloc::alloc::AllocError;
-use core::{marker::PhantomData, mem::MaybeUninit, pin::Pin, ptr};
+use core::{
+    fmt,
+    marker::PhantomData,
+    mem::MaybeUninit,
+    ops::{Deref, DerefMut},
+    pin::Pin,
+    ptr::{self, NonNull},
+};
 #[cfg(feature = "std")]
 use std::alloc::AllocError;
 
@@ -25,9 +30,27 @@ use std::{boxed::Box, rc::Rc, sync::Arc};
 
 #[macro_export]
 macro_rules! stack_init {
-    ($var:ident = $val:expr) => {
-        let mut $var = $crate::StackInit::uninit();
-        let $var = $crate::StackInit::init(&mut $var, $val);
+    (let $var:ident $(: $t:ty;)? <- $val:expr) => {
+        // SAFETY: `__store` is not accessible
+        let mut __store = unsafe { $crate::StackInit$(::<$t>)?::uninit() };
+        // SAFETY: `__store` is not accessible
+        let $var = unsafe { $crate::StackInit::init(&mut __store, $val)? };
+    };
+    (let _ $(: $t:ty;)? <- $val:expr) => {
+        // SAFETY: `__store` is not accessible
+        let mut __store = unsafe { $crate::StackInit$(::<$t>)?::uninit() };
+        // SAFETY: `__store` is not accessible
+        let _ = unsafe { $crate::StackInit::init(&mut __store, $val)? };
+    };
+    (let $var:ident $(: $t:ty)? = $val:expr) => {
+        let mut __store = $val;
+        // SAFETY: `__store` is not accessible
+        let $var = unsafe { ::core::pin::Pin::new_unchecked(&mut __store) };
+    };
+    (let _ $(: $t:ty)? = $val:expr) => {
+        let mut __store = $val;
+        // SAFETY: `__store` is not accessible
+        let _ = unsafe { ::core::pin::Pin::new_unchecked(&mut __store) };
     };
 }
 
@@ -49,7 +72,7 @@ macro_rules! stack_init {
 ///
 /// let a = 42;
 ///
-/// let initializer = pin_init!(Foo {
+/// let initializer = init!(Foo {
 ///     a,
 ///     b: Bar {
 ///         x: 64,
@@ -153,32 +176,18 @@ macro_rules! stack_init {
 /// }
 /// ```
 #[macro_export]
-macro_rules! pin_init {
-    ($($this:ident)? <- $t:ident $(<$($generics:ty),* $(,)?>)? {
-        $($inner:tt)*
-    }) => {{
-        let init = move |place: *mut $t $(<$($generics),*>)?| -> ::core::result::Result<(), _> {
-            $(let $this = unsafe { ::core::ptr::NonNull::new_unchecked(place) };)?
-            $crate::init!(@init($crate::PinInitializer::__init_pinned) @place(place) @typ($t $(<$($generics),*>)?) @parse($($inner)*) @check() @forget());
-        };
-        let init = unsafe { $crate::PinInit::from_closure(init) };
-        init
-    }};
-}
-
-#[macro_export]
 macro_rules! init {
     ($($this:ident)? <- $t:ident $(<$($generics:ty),* $(,)?>)? {
         $($inner:tt)*
     }) => {{
         let init = move |place: *mut $t $(<$($generics),*>)?| -> ::core::result::Result<(), _> {
-            $(let $this = unsafe { ::core::ptr::NonNull::new_unchecked(place) };)?
-            $crate::init!(@init($crate::Initializer::__init) @place(place) @typ($t $(<$($generics),*>)?) @parse($($inner)*) @check() @forget());
+            $(let $this = unsafe { $crate::InitPtr::new_unchecked(place) };)?
+            $crate::init!(@place(place) @typ($t $(<$($generics),*>)?) @parse($($inner)*) @check() @forget());
         };
-        let init = unsafe { $crate::PinInit::from_closure(init) };
+        let init = unsafe { $crate::Init::from_closure(init) };
         init
     }};
-    (@init($init:path) @place($place:ident) @typ($t:ident $(<$($generics:ty),*>)?) @parse() @check($($check:tt)*) @forget($($forget:tt)*)) => {
+    (@place($place:ident) @typ($t:ident $(<$($generics:ty),*>)?) @parse() @check($($check:tt)*) @forget($($forget:tt)*)) => {
         #[allow(unreachable_code, clippy::diverging_sub_expression)]
         if false {
             let _: $t $(<$($generics),*>)? = $t {
@@ -188,87 +197,25 @@ macro_rules! init {
         $($forget)*
         return Ok(());
     };
-    (@init($init:path) @place($place:ident) @typ($t:ident $(<$($generics:ty),*>)?) @parse($field:ident <- $val:expr) @check($($check:tt)*) @forget($($forget:tt)*)) => {
+    (@place($place:ident) @typ($t:ident $(<$($generics:ty),*>)?) @parse($field:ident <- $val:expr$(, $($tail:tt)*)?) @check($($check:tt)*) @forget($($forget:tt)*)) => {
         let $field = $val;
         // SAFETY: place is valid, because we are inside of an initializer closure, we return
         //         when an error/panic occurs.
-        unsafe { $init($field, ::core::ptr::addr_of_mut!((*$place).$field))? };
-        // create the drop guard
-        // SAFETY: we forget the guard later when initialization has succeeded.
-        let $field = unsafe { $crate::DropGuard::new(::core::ptr::addr_of_mut!((*place).$field)) };
-        $crate::init!(@init($init) @place($place) @typ($t $(<$($generics),*>)?) @parse() @check($field: ::core::todo!(), $($check)*) @forget(::core::mem::forget($field); $($forget)*));
-    };
-    (@init($init:path) @place($place:ident) @typ($t:ident $(<$($generics:ty),*>)?) @parse($field:ident <- $val:expr, $($tail:tt)*) @check($($check:tt)*) @forget($($forget:tt)*)) => {
-        let $field = $val;
-        // SAFETY: place is valid, because we are inside of an initializer closure, we return
-        //         when an error/panic occurs.
-        unsafe { $init($field, ::core::ptr::addr_of_mut!((*$place).$field))? };
+        unsafe { $crate::Initializer::__init($field, ::core::ptr::addr_of_mut!((*$place).$field))? };
         // create the drop guard
         // SAFETY: we forget the guard later when initialization has succeeded.
         let $field = unsafe { $crate::DropGuard::new(::core::ptr::addr_of_mut!((*$place).$field)) };
-        $crate::init!(@init($init) @place($place) @typ($t $(<$($generics),*>)?) @parse($($tail)*) @check($field: ::core::todo!(), $($check)*) @forget(::core::mem::forget($field); $($forget)*));
+        $crate::init!(@place($place) @typ($t $(<$($generics),*>)?) @parse($($($tail)*)?) @check($field: ::core::todo!(), $($check)*) @forget(::core::mem::forget($field); $($forget)*));
     };
-    (@init($init:path) @place($place:ident) @typ($t:ident $(<$($generics:ty),*>)?) @parse($field:ident $(: $val:expr)?) @check($($check:tt)*) @forget($($forget:tt)*)) => {
+    (@place($place:ident) @typ($t:ident $(<$($generics:ty),*>)?) @parse($field:ident $(: $val:expr)?$(, $($tail:tt)*)?) @check($($check:tt)*) @forget($($forget:tt)*)) => {
         $(let $field = $val;)?
         // write the value directly
         unsafe { ::core::ptr::addr_of_mut!((*$place).$field).write($field) };
         // create the drop guard
         // SAFETY: we forget the guard later when initialization has succeeded.
         let $field = unsafe { $crate::DropGuard::new(::core::ptr::addr_of_mut!((*$place).$field)) };
-        $crate::init!(@init($init) @place($place) @typ($t $(<$($generics),*>)?) @parse() @check($field: ::core::todo!(), $($check)*) @forget(::core::mem::forget($field); $($forget)*));
+        $crate::init!(@place($place) @typ($t $(<$($generics),*>)?) @parse($($($tail)*)?) @check($field: ::core::todo!(), $($check)*) @forget(::core::mem::forget($field); $($forget)*));
     };
-    (@init($init:path) @place($place:ident) @typ($t:ident $(<$($generics:ty),*>)?) @parse($field:ident $(: $val:expr)?, $($tail:tt)*) @check($($check:tt)*) @forget($($forget:tt)*)) => {
-        $(let $field = $val;)?
-        // write the value directly
-        unsafe { ::core::ptr::addr_of_mut!((*$place).$field).write($field) };
-        // create the drop guard
-        // SAFETY: we forget the guard later when initialization has succeeded.
-        let $field = unsafe { $crate::DropGuard::new(::core::ptr::addr_of_mut!((*$place).$field)) };
-        $crate::init!(@init($init) @place($place) @typ($t $(<$($generics),*>)?) @parse($($tail)*) @check($field: ::core::todo!(), $($check)*) @forget(::core::mem::forget($field); $($forget)*));
-    };
-}
-
-mod sealed {
-    use super::*;
-    pub trait Sealed {}
-
-    impl Sealed for Direct {}
-    impl Sealed for Closure {}
-}
-
-/// Marking ways of initialization, there exist two:
-/// - [`Direct`],
-/// - [`Closure`].
-///
-/// This is necessary, because otherwise the implementations would overlap.
-pub trait InitWay: sealed::Sealed {}
-
-impl InitWay for Direct {}
-impl InitWay for Closure {}
-
-/// Direct value based initialization.
-pub struct Direct;
-/// Initialization via closure that initializes each field.
-pub struct Closure;
-
-/// An initializer for `T`.
-///
-/// # Safety
-/// The [`PinInitializer::__init_pinned`] function
-/// - returns `Ok(())` iff it initialized every field of place,
-/// - returns `Err(err)` iff it encountered an error and then cleaned place, this means:
-///     - place can be deallocated without UB ocurring,
-///     - place does not need to be dropped,
-///     - place is not partially initialized.
-pub unsafe trait PinInitializer<T, E, Way: InitWay = Closure>: Sized {
-    /// Initializes `place`.
-    ///
-    /// # Safety
-    /// `place` is a valid pointer to uninitialized memory.
-    /// The caller does not touch `place` when `Err` is returned, they are only permitted to
-    /// deallocate.
-    /// The place will not move, i.e. it will be pinned.
-    unsafe fn __init_pinned(self, place: *mut T) -> Result<(), E>;
 }
 
 /// An initializer for `T`.
@@ -280,37 +227,14 @@ pub unsafe trait PinInitializer<T, E, Way: InitWay = Closure>: Sized {
 ///     - place can be deallocated without UB ocurring,
 ///     - place does not need to be dropped,
 ///     - place is not partially initialized.
-///
-/// Contrary to its supertype [`PinInitializer<T, E, Way>`] the caller is allowed to
-/// move the pointee after initialization.
-pub unsafe trait Initializer<T, E, Way: InitWay = Closure>:
-    PinInitializer<T, E, Way>
-{
+pub unsafe trait Initializer<T, E> {
     /// Initializes `place`.
     ///
     /// # Safety
     /// `place` is a valid pointer to uninitialized memory.
-    /// The caller does not touch `place` when `Err` is returned, they are only permitted to
-    /// deallocate.
+    /// - The caller does not touch `place` when `Err` is returned, they are only permitted to deallocate.
+    /// - If `T: !Unpin` then `place` will need to be pinned after returning `Ok(())`
     unsafe fn __init(self, place: *mut T) -> Result<(), E>;
-}
-
-unsafe impl<T> PinInitializer<T, !, Direct> for T {
-    unsafe fn __init_pinned(self, place: *mut T) -> Result<(), !> {
-        unsafe {
-            place.write(self);
-        }
-        Ok(())
-    }
-}
-
-unsafe impl<T> Initializer<T, !, Direct> for T {
-    unsafe fn __init(self, place: *mut T) -> Result<(), !> {
-        unsafe {
-            place.write(self);
-        }
-        Ok(())
-    }
 }
 
 type Invariant<T> = PhantomData<fn(T) -> T>;
@@ -331,22 +255,13 @@ where
     ///     - place can be deallocated without UB ocurring,
     ///     - place does not need to be dropped,
     ///     - place is not partially initialized.
-    /// - place may move after initialization
+    /// - place will not move after initialization if `T: !Unpin`
     pub const unsafe fn from_closure(f: F) -> Self {
         Self(f, PhantomData)
     }
 }
 
-unsafe impl<T, F, E> PinInitializer<T, E, Closure> for Init<F, T, E>
-where
-    F: FnOnce(*mut T) -> Result<(), E>,
-{
-    unsafe fn __init_pinned(self, place: *mut T) -> Result<(), E> {
-        (self.0)(place)
-    }
-}
-
-unsafe impl<T, F, E> Initializer<T, E, Closure> for Init<F, T, E>
+unsafe impl<T, F, E> Initializer<T, E> for Init<F, T, E>
 where
     F: FnOnce(*mut T) -> Result<(), E>,
 {
@@ -355,37 +270,54 @@ where
     }
 }
 
-/// A closure initializer for pinned data.
-pub struct PinInit<F, T, E>(F, Invariant<(T, E)>);
+pub struct InitPtr<T: ?Sized>(NonNull<T>);
 
-impl<T, E, F> PinInit<F, T, E>
-where
-    F: FnOnce(*mut T) -> Result<(), E>,
-{
-    /// Creates a new Init from the given closure
-    ///
-    /// # Safety
-    /// The closure
-    /// - returns `Ok(())` iff it initialized every field of place,
-    /// - returns `Err(err)` iff it encountered an error and then cleaned place, this means:
-    ///     - place can be deallocated without UB ocurring,
-    ///     - place does not need to be dropped,
-    ///     - place is not partially initialized.
-    pub const unsafe fn from_closure(f: F) -> Self {
-        Self(f, PhantomData)
+impl<T: ?Sized> fmt::Debug for InitPtr<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Pointer::fmt(&self.as_ptr(), f)
     }
 }
 
-unsafe impl<T, F, E> PinInitializer<T, E> for PinInit<F, T, E>
-where
-    F: FnOnce(*mut T) -> Result<(), E>,
-{
-    unsafe fn __init_pinned(self, place: *mut T) -> Result<(), E> {
-        (self.0)(place)
+impl<T: ?Sized> fmt::Pointer for InitPtr<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Pointer::fmt(&self.as_ptr(), f)
     }
 }
 
-/// When a value of this type is dropped, it drops something else.
+impl<T: ?Sized> Clone for InitPtr<T> {
+    fn clone(&self) -> Self {
+        Self(self.0)
+    }
+}
+
+impl<T: ?Sized> Copy for InitPtr<T> {}
+
+impl<T: ?Sized> Deref for InitPtr<T> {
+    type Target = NonNull<T>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl<T: ?Sized> DerefMut for InitPtr<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl<T: ?Sized> From<InitPtr<T>> for NonNull<T> {
+    fn from(ptr: InitPtr<T>) -> Self {
+        ptr.0
+    }
+}
+
+impl<T: ?Sized> InitPtr<T> {
+    pub unsafe fn new_unchecked(ptr: *mut T) -> Self {
+        Self(NonNull::new_unchecked(ptr))
+    }
+}
+
+/// When a value of this type is dropped, it drops a `T`.
 pub struct DropGuard<T: ?Sized>(*mut T);
 
 impl<T: ?Sized> DropGuard<T> {
@@ -410,6 +342,7 @@ impl<T: ?Sized> Drop for DropGuard<T> {
     }
 }
 
+/// Stack allocated and initialized data
 pub struct StackInit<T>(MaybeUninit<T>, bool);
 
 impl<T> Drop for StackInit<T> {
@@ -419,32 +352,43 @@ impl<T> Drop for StackInit<T> {
         }
     }
 }
+
 impl<T> StackInit<T> {
-    pub fn uninit() -> Self {
+    pub unsafe fn uninit() -> Self {
         Self(MaybeUninit::uninit(), false)
     }
 
-    pub fn init<Way: InitWay>(&mut self, init: impl PinInitializer<T, !, Way>) -> Pin<&mut T> {
-        unsafe { init.__init_pinned(self.0.as_mut_ptr()).into_ok() };
+    pub unsafe fn init<E>(&mut self, init: impl Initializer<T, E>) -> Result<Pin<&mut T>, E> {
+        unsafe { init.__init(self.0.as_mut_ptr())? };
         self.1 = true;
-        unsafe { Pin::new_unchecked(self.0.assume_init_mut()) }
+        Ok(unsafe { Pin::new_unchecked(self.0.assume_init_mut()) })
     }
 }
 
-pub trait InPlaceInit<T>: Sized {
+pub unsafe trait InPlaceInit<T>: Sized + Deref<Target = T> {
     type Error<E>;
 
-    fn pin_init<E, Way: InitWay>(
-        init: impl PinInitializer<T, E, Way>,
-    ) -> Result<Pin<Self>, Self::Error<E>>;
+    fn pin_init<E>(init: impl Initializer<T, E>) -> Result<Pin<Self>, Self::Error<E>>;
 
-    fn init<E, Way: InitWay>(init: impl Initializer<T, E, Way>) -> Result<Self, Self::Error<E>>;
+    fn init<E>(init: impl Initializer<T, E>) -> Result<Self, Self::Error<E>>
+    where
+        T: Unpin,
+    {
+        InPlaceInit::pin_init(init).map(Pin::into_inner)
+    }
 }
 
 #[derive(Debug)]
 pub enum AllocInitErr<E> {
     Init(E),
     Alloc,
+}
+
+#[cfg(feature = "never_type")]
+impl<E> From<!> for AllocInitErr<E> {
+    fn from(e: !) -> Self {
+        e
+    }
 }
 
 #[cfg(any(feature = "alloc", feature = "std"))]
@@ -454,83 +398,30 @@ impl<E> From<AllocError> for AllocInitErr<E> {
     }
 }
 
-#[cfg(any(feature = "alloc", feature = "std"))]
-impl<T> InPlaceInit<T> for Box<T> {
-    type Error<E> = AllocInitErr<E>;
+macro_rules! impl_in_place_init {
+    ($($t:ident[$get_mut:ident]),*) => {
+        $(
+            #[cfg(any(feature = "alloc", feature = "std"))]
+            unsafe impl<T> InPlaceInit<T> for $t<T> {
+                type Error<E> = AllocInitErr<E>;
 
-    fn pin_init<E, Way: InitWay>(
-        init: impl PinInitializer<T, E, Way>,
-    ) -> Result<Pin<Self>, Self::Error<E>> {
-        let mut this = Box::try_new_uninit()?;
-        let place = this.as_mut_ptr();
-        // SAFETY: when init errors/panics, place will get deallocated but not dropped,
-        // place is valid and will not be moved because of the into_pin
-        unsafe { init.__init_pinned(place).map_err(AllocInitErr::Init)? };
-        // SAFETY: all fields have been initialized
-        Ok(Box::into_pin(unsafe { this.assume_init() }))
-    }
-
-    fn init<E, Way: InitWay>(init: impl Initializer<T, E, Way>) -> Result<Self, Self::Error<E>> {
-        let mut this = Box::try_new_uninit()?;
-        let place = this.as_mut_ptr();
-        // SAFETY: when init errors/panics, place will get deallocated but not dropped,
-        // place is valid
-        unsafe { init.__init(place).map_err(AllocInitErr::Init)? };
-        // SAFETY: all fields have been initialized
-        Ok(unsafe { this.assume_init() })
-    }
+                fn pin_init<E>(init: impl Initializer<T, E>) -> Result<Pin<Self>, Self::Error<E>> {
+                    let mut this = $t::try_new_uninit()?;
+                    #[allow(unused_unsafe)]
+                    let place = unsafe { $t::$get_mut(&mut this) }.as_mut_ptr();
+                    // SAFETY: when init errors/panics, place will get deallocated but not dropped,
+                    // place is valid and will not be moved because of the Pin::new_unchecked
+                    unsafe { init.__init(place).map_err(AllocInitErr::Init)? };
+                    // SAFETY: all fields have been initialized
+                    Ok(unsafe { Pin::new_unchecked(this.assume_init())})
+                }
+            }
+        )*
+    };
 }
 
-#[cfg(any(feature = "alloc", feature = "std"))]
-impl<T> InPlaceInit<T> for Arc<T> {
-    type Error<E> = AllocInitErr<E>;
-
-    fn pin_init<E, Way: InitWay>(
-        init: impl PinInitializer<T, E, Way>,
-    ) -> Result<Pin<Self>, Self::Error<E>> {
-        let mut this = Arc::try_new_uninit()?;
-        let place = unsafe { Arc::get_mut_unchecked(&mut this) }.as_mut_ptr();
-        // SAFETY: when init errors/panics, place will get deallocated but not dropped,
-        // place is valid and will not be moved because of the into_pin
-        unsafe { init.__init_pinned(place).map_err(AllocInitErr::Init)? };
-        // SAFETY: all fields have been initialized
-        Ok(unsafe { Pin::new_unchecked(this.assume_init()) })
-    }
-
-    fn init<E, Way: InitWay>(init: impl Initializer<T, E, Way>) -> Result<Self, Self::Error<E>> {
-        let mut this = Arc::try_new_uninit()?;
-        let place = unsafe { Arc::get_mut_unchecked(&mut this) }.as_mut_ptr();
-        // SAFETY: when init errors/panics, place will get deallocated but not dropped,
-        // place is valid
-        unsafe { init.__init(place).map_err(AllocInitErr::Init)? };
-        // SAFETY: all fields have been initialized
-        Ok(unsafe { this.assume_init() })
-    }
-}
-
-#[cfg(any(feature = "alloc", feature = "std"))]
-impl<T> InPlaceInit<T> for Rc<T> {
-    type Error<E> = AllocInitErr<E>;
-
-    fn pin_init<E, Way: InitWay>(
-        init: impl PinInitializer<T, E, Way>,
-    ) -> Result<Pin<Self>, Self::Error<E>> {
-        let mut this = Rc::try_new_uninit()?;
-        let place = unsafe { Rc::get_mut_unchecked(&mut this) }.as_mut_ptr();
-        // SAFETY: when init errors/panics, place will get deallocated but not dropped,
-        // place is valid and will not be moved because of the into_pin
-        unsafe { init.__init_pinned(place).map_err(AllocInitErr::Init)? };
-        // SAFETY: all fields have been initialized
-        Ok(unsafe { Pin::new_unchecked(this.assume_init()) })
-    }
-
-    fn init<E, Way: InitWay>(init: impl Initializer<T, E, Way>) -> Result<Self, Self::Error<E>> {
-        let mut this = Rc::try_new_uninit()?;
-        let place = unsafe { Rc::get_mut_unchecked(&mut this) }.as_mut_ptr();
-        // SAFETY: when init errors/panics, place will get deallocated but not dropped,
-        // place is valid
-        unsafe { init.__init(place).map_err(AllocInitErr::Init)? };
-        // SAFETY: all fields have been initialized
-        Ok(unsafe { this.assume_init() })
-    }
-}
+impl_in_place_init!(
+    Box[deref_mut],
+    Arc[get_mut_unchecked],
+    Rc[get_mut_unchecked]
+);
