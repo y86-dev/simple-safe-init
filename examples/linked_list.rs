@@ -23,6 +23,7 @@ pub struct ListHead {
 }
 
 impl ListHead {
+    #[inline]
     pub fn new() -> impl Initializer<Self, !> {
         init!(this <- Self {
             next: Link::from(this),
@@ -31,6 +32,7 @@ impl ListHead {
         })
     }
 
+    #[inline]
     pub fn insert_new(list: &ListHead) -> impl Initializer<Self, !> + '_ {
         init!(this <- Self {
             prev: list.next.prev().replace(Link::from(this)),
@@ -39,6 +41,7 @@ impl ListHead {
         })
     }
 
+    #[inline]
     pub fn next(&self) -> Option<NonNull<Self>> {
         if ptr::eq(self.next.as_ptr(), self) {
             None
@@ -49,6 +52,7 @@ impl ListHead {
 }
 
 impl Drop for ListHead {
+    #[inline]
     fn drop(&mut self) {
         if !ptr::eq(self.next.as_ptr(), self) {
             let next = unsafe { &*self.next.as_ptr() };
@@ -64,28 +68,34 @@ impl Drop for ListHead {
 struct Link(Cell<NonNull<ListHead>>);
 
 impl From<InitPtr<ListHead>> for Link {
+    #[inline]
     fn from(ptr: InitPtr<ListHead>) -> Self {
         Self(Cell::new(ptr.into()))
     }
 }
 
 impl Link {
+    #[inline]
     unsafe fn new_unchecked(ptr: *const ListHead) -> Self {
         unsafe { Self(Cell::new(NonNull::new_unchecked(ptr as *mut ListHead))) }
     }
 
+    #[inline]
     fn prev(&self) -> &Link {
         unsafe { &(*self.0.get().as_ptr()).prev }
     }
 
+    #[inline]
     fn replace(&self, other: Link) -> Link {
         unsafe { Link::new_unchecked(self.0.replace(other.0.get()).as_ptr()) }
     }
 
+    #[inline]
     fn as_ptr(&self) -> *const ListHead {
         self.0.get().as_ptr()
     }
 
+    #[inline]
     fn set(&self, val: &Link) {
         self.0.set(val.0.get());
     }

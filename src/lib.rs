@@ -256,6 +256,7 @@ where
     ///     - place does not need to be dropped,
     ///     - place is not partially initialized.
     /// - place will not move after initialization if `T: !Unpin`
+    #[inline]
     pub const unsafe fn from_closure(f: F) -> Self {
         Self(f, PhantomData)
     }
@@ -265,6 +266,7 @@ unsafe impl<T, F, E> Initializer<T, E> for Init<F, T, E>
 where
     F: FnOnce(*mut T) -> Result<(), E>,
 {
+    #[inline]
     unsafe fn __init(self, place: *mut T) -> Result<(), E> {
         (self.0)(place)
     }
@@ -285,6 +287,7 @@ impl<T: ?Sized> fmt::Pointer for InitPtr<T> {
 }
 
 impl<T: ?Sized> Clone for InitPtr<T> {
+    #[inline]
     fn clone(&self) -> Self {
         Self(self.0)
     }
@@ -295,23 +298,27 @@ impl<T: ?Sized> Copy for InitPtr<T> {}
 impl<T: ?Sized> Deref for InitPtr<T> {
     type Target = NonNull<T>;
 
+    #[inline]
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 impl<T: ?Sized> DerefMut for InitPtr<T> {
+    #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
 }
 
 impl<T: ?Sized> From<InitPtr<T>> for NonNull<T> {
+    #[inline]
     fn from(ptr: InitPtr<T>) -> Self {
         ptr.0
     }
 }
 
 impl<T: ?Sized> InitPtr<T> {
+    #[inline]
     pub unsafe fn new_unchecked(ptr: *mut T) -> Self {
         Self(NonNull::new_unchecked(ptr))
     }
@@ -330,12 +337,14 @@ impl<T: ?Sized> DropGuard<T> {
     /// - has not been dropped,
     /// - is not accesible by any other means,
     /// - will not be dropped by any other means.
+    #[inline]
     pub unsafe fn new(ptr: *mut T) -> Self {
         Self(ptr)
     }
 }
 
 impl<T: ?Sized> Drop for DropGuard<T> {
+    #[inline]
     fn drop(&mut self) {
         // SAFETY: safe as a `DropGuard` can only be constructed using the unsafe new function.
         unsafe { ptr::drop_in_place(self.0) }
@@ -346,6 +355,7 @@ impl<T: ?Sized> Drop for DropGuard<T> {
 pub struct StackInit<T>(MaybeUninit<T>, bool);
 
 impl<T> Drop for StackInit<T> {
+    #[inline]
     fn drop(&mut self) {
         if self.1 {
             unsafe { self.0.assume_init_drop() };
@@ -354,10 +364,12 @@ impl<T> Drop for StackInit<T> {
 }
 
 impl<T> StackInit<T> {
+    #[inline]
     pub unsafe fn uninit() -> Self {
         Self(MaybeUninit::uninit(), false)
     }
 
+    #[inline]
     pub unsafe fn init<E>(&mut self, init: impl Initializer<T, E>) -> Result<Pin<&mut T>, E> {
         unsafe { init.__init(self.0.as_mut_ptr())? };
         self.1 = true;
@@ -370,6 +382,7 @@ pub unsafe trait InPlaceInit<T>: Sized + Deref<Target = T> {
 
     fn pin_init<E>(init: impl Initializer<T, E>) -> Result<Pin<Self>, Self::Error<E>>;
 
+    #[inline]
     fn init<E>(init: impl Initializer<T, E>) -> Result<Self, Self::Error<E>>
     where
         T: Unpin,
@@ -405,6 +418,7 @@ macro_rules! impl_in_place_init {
             unsafe impl<T> InPlaceInit<T> for $t<T> {
                 type Error<E> = AllocInitErr<E>;
 
+                #[inline]
                 fn pin_init<E>(init: impl Initializer<T, E>) -> Result<Pin<Self>, Self::Error<E>> {
                     let mut this = $t::try_new_uninit()?;
                     #[allow(unused_unsafe)]
