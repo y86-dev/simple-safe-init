@@ -10,13 +10,11 @@
 use core::{
     cell::{Cell, UnsafeCell},
     ops::{Deref, DerefMut},
-    pin::Pin,
     sync::atomic::{AtomicBool, Ordering},
 };
 use std::{
     sync::Arc,
-    thread::{current, park, sleep, Builder, Thread},
-    time::Duration,
+    thread::{self, Thread},
 };
 
 use simple_safe_init::*;
@@ -29,6 +27,7 @@ pub struct SpinLock {
 }
 
 impl SpinLock {
+    #[inline]
     pub fn acquire(&self) -> SpinLockGuard<'_> {
         while self
             .inner
@@ -38,6 +37,7 @@ impl SpinLock {
         SpinLockGuard(self)
     }
 
+    #[inline]
     pub fn new() -> Self {
         Self {
             inner: AtomicBool::new(false),
@@ -48,6 +48,7 @@ impl SpinLock {
 pub struct SpinLockGuard<'a>(&'a SpinLock);
 
 impl Drop for SpinLockGuard<'_> {
+    #[inline]
     fn drop(&mut self) {
         self.0.inner.store(false, Ordering::Release);
     }
@@ -61,7 +62,8 @@ pub struct Mutex<T> {
 }
 
 impl<T> Mutex<T> {
-    pub fn new(val: T) -> impl Initializer<Self, !> {
+    #[inline]
+    pub const fn new(val: T) -> impl Initializer<Self, !> {
         init!( <- Self {
             wait_list <- ListHead::new(),
             spin_lock: SpinLock::new(),
@@ -69,6 +71,8 @@ impl<T> Mutex<T> {
             data: UnsafeCell::new(val),
         })
     }
+
+    #[inline]
     pub fn lock(&self) -> MutexGuard<'_, T> {
         let mut sguard = self.spin_lock.acquire();
         if self.locked.get() {
@@ -77,7 +81,7 @@ impl<T> Mutex<T> {
                     stack_init!(let wait_entry <- WaitEntry::insert_new(&self.wait_list));
                     while self.locked.get() {
                         drop(sguard);
-                        park();
+                        thread::park();
                         sguard = self.spin_lock.acquire();
                     }
                     drop(wait_entry);
@@ -97,6 +101,7 @@ pub struct MutexGuard<'a, T> {
 }
 
 impl<'a, T> Drop for MutexGuard<'a, T> {
+    #[inline]
     fn drop(&mut self) {
         let sguard = self.mtx.spin_lock.acquire();
         self.mtx.locked.set(false);
@@ -111,12 +116,14 @@ impl<'a, T> Drop for MutexGuard<'a, T> {
 impl<'a, T> Deref for MutexGuard<'a, T> {
     type Target = T;
 
+    #[inline]
     fn deref(&self) -> &Self::Target {
         unsafe { &*self.mtx.data.get() }
     }
 }
 
 impl<'a, T> DerefMut for MutexGuard<'a, T> {
+    #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         unsafe { &mut *self.mtx.data.get() }
     }
@@ -129,12 +136,31 @@ struct WaitEntry {
 }
 
 impl WaitEntry {
+    #[inline]
     fn insert_new(list: &ListHead) -> impl Initializer<Self, !> + '_ {
         init!(<- Self {
-            thread: current(),
+            thread: thread::current(),
             wait_list <- ListHead::insert_new(list),
         })
     }
 }
 
-fn main() {}
+fn main() -> Result<(), AllocInitErr<!>> {
+    let mtx = Arc::pin_init(Mutex::new(0))?;
+    let mtx2 = mtx.clone();
+    let t = thread::spawn(move || {
+        *mtx2.lock() = 1;
+        while *mtx2.lock() == 1 {}
+        for _ in 0..1000_000 {
+            *mtx2.lock() += 1;
+        }
+    });
+    while *mtx.lock() != 1 {}
+    *mtx.lock() = 0;
+    for _ in 0..1000_000 {
+        *mtx.lock() -= 1;
+    }
+    t.join().expect("thread panicked");
+    println!("{}", &*mtx.lock());
+    Ok(())
+}
